@@ -36,6 +36,15 @@
         <button id="save-settings">Save settings</button>
         <span class="save-msg" id="settings-save-msg"></span>
       </section>
+
+      <section class="card" id="backup-card">
+        <h2>Backup &amp; restore</h2>
+        <p class="hint">Download your entities, system settings and schedules as a JSON file, or restore them from one. Restoring replaces everything currently saved.</p>
+        <button id="download-backup">Download backup</button>
+        <button id="restore-backup">Restore from file…</button>
+        <input type="file" id="restore-file" accept=".json,application/json" hidden />
+        <span class="save-msg" id="backup-msg"></span>
+      </section>
     </div>
 
     <div class="tab-panel" id="tab-schedules">

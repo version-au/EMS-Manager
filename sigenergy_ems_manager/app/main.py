@@ -2,18 +2,20 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from ha_client import HAClient
 from scheduler import Scheduler
 import storage
 
 OPTIONS_PATH = Path("/data/options.json")
+BACKUP_FORMAT = 1
 
 
 def load_addon_options() -> dict:
@@ -133,6 +135,46 @@ async def set_windows(payload: WindowsPayload):
     cfg = storage.load_config()
     cfg["windows"] = [w.model_dump() for w in payload.windows]
     storage.save_config(cfg)
+    return cfg
+
+
+@app.get("/api/backup")
+async def get_backup():
+    """Everything the user configured (entities, settings, schedules) as a
+    downloadable JSON file. Runtime status is left out - it's regenerated on
+    the next poll anyway."""
+    cfg = storage.load_config()
+    backup = {
+        "backup_format": BACKUP_FORMAT,
+        "exported_at": datetime.now().isoformat(timespec="seconds"),
+        "entities": cfg["entities"],
+        "settings": cfg["settings"],
+        "windows": cfg["windows"],
+    }
+    filename = f"ems-manager-backup-{datetime.now():%Y-%m-%d}.json"
+    return JSONResponse(backup, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@app.post("/api/restore")
+async def restore_backup(payload: dict):
+    """Replace entities, settings and schedules with the contents of a backup
+    file. Also accepts a raw /data/config.json, since it has the same keys."""
+    if not isinstance(payload.get("windows"), list) or not isinstance(payload.get("entities"), dict):
+        raise HTTPException(status_code=400, detail="Not an EMS Manager backup file")
+    windows = [w for w in payload["windows"] if isinstance(w, dict)]
+    storage.migrate_windows(windows)
+    try:
+        entities = EntitiesPayload(**payload["entities"])
+        settings = SettingsPayload(**(payload.get("settings") or {}))
+        validated = [Window(**w) for w in windows]
+    except ValidationError as exc:
+        raise HTTPException(status_code=400, detail=f"Backup file is invalid: {exc}")
+    cfg = storage.load_config()
+    cfg["entities"] = entities.model_dump()
+    cfg["settings"] = settings.model_dump()
+    cfg["windows"] = [w.model_dump() for w in validated]
+    storage.save_config(cfg)
+    log.info("Restored config from backup (%d schedules)", len(validated))
     return cfg
 
 

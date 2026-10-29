@@ -22,6 +22,9 @@ those values while a window is active.
 - Config (entity mapping + schedules) is stored in the add-on's persistent
   `/data` volume, editable any time from the sidebar UI, and survives
   add-on updates.
+- **Setup → Backup & restore** downloads your entities, system settings and
+  schedules as a JSON file, and can restore them from one (handy before
+  reinstalling the add-on or moving to a new Home Assistant instance).
 
 ## Installing
 

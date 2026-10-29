@@ -141,6 +141,7 @@ button#add-window {
 }
 
 .save-msg { font-size: 0.8rem; color: var(--good); margin-left: 4px; }
+.save-msg.error { color: var(--bad); }
 
 .window {
   border: 1px solid var(--border);

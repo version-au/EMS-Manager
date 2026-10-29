@@ -80,6 +80,13 @@ def _migrate_export_limit_field(windows: list) -> bool:
     return changed
 
 
+def migrate_windows(windows: list) -> None:
+    """Bring windows from an older config (e.g. a restored backup) up to the
+    current shape, using the same repairs load_config() applies."""
+    _repair_window_ids(windows)
+    _migrate_export_limit_field(windows)
+
+
 def load_config() -> dict:
     with _lock:
         if not CONFIG_PATH.exists():

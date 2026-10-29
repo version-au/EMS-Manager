@@ -252,6 +252,63 @@ async function saveWindows() {
   flashSaved("windows-save-msg");
 }
 
+function showBackupMsg(text, isError = false) {
+  const el = document.getElementById("backup-msg");
+  el.textContent = text;
+  el.classList.toggle("error", isError);
+  if (!isError) setTimeout(() => (el.textContent = ""), 3000);
+}
+
+async function downloadBackup() {
+  try {
+    const resp = await fetch("api/backup");
+    if (!resp.ok) throw new Error(`api/backup -> ${resp.status}`);
+    // Build the file client-side rather than navigating to api/backup, so the
+    // download works from inside the ingress iframe.
+    const blob = await resp.blob();
+    const match = /filename="([^"]+)"/.exec(resp.headers.get("Content-Disposition") || "");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = match ? match[1] : "ems-manager-backup.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+    showBackupMsg("Backup downloaded");
+  } catch (e) {
+    showBackupMsg(`Backup failed: ${e.message}`, true);
+  }
+}
+
+async function restoreBackup(file) {
+  let data;
+  try {
+    data = JSON.parse(await file.text());
+  } catch (e) {
+    showBackupMsg("Restore failed: that file isn't valid JSON", true);
+    return;
+  }
+  const count = Array.isArray(data.windows) ? data.windows.length : 0;
+  if (!confirm(`Restore from "${file.name}"? This replaces your current entities, settings and all schedules with the ${count} schedule(s) in the backup.`)) {
+    return;
+  }
+  const resp = await fetch("api/restore", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!resp.ok) {
+    let detail = `${resp.status}`;
+    try {
+      detail = (await resp.json()).detail || detail;
+    } catch (e) {}
+    showBackupMsg(`Restore failed: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`, true);
+    return;
+  }
+  await loadConfig();
+  showBackupMsg("Restored");
+}
+
 async function refreshStatus() {
   try {
     const status = await fetchJSON("api/status");
@@ -291,6 +348,16 @@ function initTabs() {
 document.getElementById("save-entities").addEventListener("click", saveEntities);
 document.getElementById("save-settings").addEventListener("click", saveSettings);
 document.getElementById("save-windows").addEventListener("click", saveWindows);
+document.getElementById("download-backup").addEventListener("click", downloadBackup);
+document.getElementById("restore-backup").addEventListener("click", () => {
+  document.getElementById("restore-file").click();
+});
+document.getElementById("restore-file").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  // Clear it so picking the same file again still fires "change".
+  e.target.value = "";
+  if (file) restoreBackup(file);
+});
 document.getElementById("add-window").addEventListener("click", () => {
   const node = renderWindow({ name: "", start: "00:00", end: "00:00", enabled: true });
   node.classList.add("expanded");
