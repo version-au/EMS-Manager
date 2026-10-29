@@ -251,7 +251,11 @@ async function loadProfiles() {
   Object.entries(profiles).forEach(([key, p]) => select.add(new Option(p.label, key)));
 }
 
-function onInverterTypeChange() {
+async function onInverterTypeChange() {
+  // Saved straight away rather than waiting for "Save settings" - the UI
+  // switches immediately, so the scheduler must too, or schedules saved
+  // with the new inverter's modes get rejected against the old one.
+  await saveSettings();
   // Re-render entity fields and each schedule's mode list for the new
   // inverter in place, keeping anything typed but not yet saved.
   collectEntities();

@@ -41,7 +41,7 @@ those values while a window is active.
 2. Refresh the store, find **EMS Manager**, install it.
 3. Start it, then open it from the sidebar (look for the battery icon).
 4. On first load, go to **Setup → System**, pick your **Inverter**
-   (Sigenergy or GoodWe) and click **Save settings**. Then fill in the
+   (Sigenergy or GoodWe) — it's saved as soon as you change it. Then fill in the
    **Entities** section with your actual entity IDs — the fields
    autocomplete against your live Home Assistant entities as you type.
 5. Add your schedule windows (e.g. your free-power period, your high-PV
