@@ -4,17 +4,15 @@ from datetime import datetime, time as dtime, timedelta
 from typing import Optional
 
 from ha_client import HAClient
+from profiles import get_profile
 import storage
 
 log = logging.getLogger("sigen_ems.scheduler")
 
 DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
-# Must match the option text of the Sigenergy Local Modbus EMS mode select
-# entity exactly - these are used both for the UI dropdown and to decide
-# when discharge/charge ramping applies.
-DISCHARGE_MODES = {"Command Discharging (PV First)", "Command Discharging (ESS First)"}
-CHARGE_MODES = {"Command Charging (Grid First)", "Command Charging (PV First)"}
+# unit_of_measurement -> multiplier from the UI's kW to the entity's units.
+POWER_UNIT_SCALES = {"W": 1000.0, "kW": 1.0}
 
 # Floor under remaining window time when computing a ramp rate, so a window
 # that's about to close doesn't produce a divide-by-near-zero power spike.
@@ -65,11 +63,10 @@ class Scheduler:
     ) -> None:
         self.ha = ha
         self.poll_interval = poll_interval
-        # The UI works in kW. Sigenergy's Modbus number entities for power
-        # limits are natively in W, so we multiply by this scale (1000) when
-        # writing, and divide by it when reading, to keep the UI in kW. Set
-        # this to 1 (via the add-on's power_entities_unit option) if your
-        # entities are already natively in kW.
+        # The UI works in kW. Power entities are converted using their own
+        # unit_of_measurement (W or kW) when they report one; this scale is
+        # only the fallback for entities that don't, set via the add-on's
+        # power_entities_unit option (1000 for W, 1 for kW).
         self.power_entity_scale = power_entity_scale
         self._task: Optional[asyncio.Task] = None
         self._stop = asyncio.Event()
@@ -101,10 +98,26 @@ class Scheduler:
             except asyncio.TimeoutError:
                 pass
 
+    def _scale_for(self, state: Optional[dict]) -> Optional[float]:
+        """kW -> entity-native multiplier for a power entity, from its
+        unit_of_measurement. None means the unit isn't a power unit (e.g. a
+        GoodWe export limit configured as %), so the value can't be
+        converted."""
+        unit = ((state or {}).get("attributes") or {}).get("unit_of_measurement")
+        if not unit:
+            return self.power_entity_scale
+        return POWER_UNIT_SCALES.get(unit)
+
     async def _tick(self) -> None:
         cfg = storage.load_config()
-        entities = cfg["entities"]
         settings = cfg.get("settings", {})
+        profile = get_profile(settings.get("inverter_type"))
+        # Only the entities this inverter type uses - stops a mapping left
+        # over from another brand (e.g. a Sigenergy import limit) being
+        # written after switching.
+        entities = {key: cfg["entities"].get(key, "") for key, *_ in profile["entities"]}
+        discharge_modes = set(profile["discharge_modes"])
+        charge_modes = set(profile["charge_modes"])
         capacity_kwh = settings.get("battery_capacity_kwh")
         now = datetime.now()
         active = _active_windows(cfg.get("windows", []), now)
@@ -167,17 +180,18 @@ class Scheduler:
 
         discharge_ramp_active = bool(
             mode_window
-            and merged.get("ems_mode") in DISCHARGE_MODES
+            and merged.get("ems_mode") in discharge_modes
             and mode_window.get("discharge_ramp_enabled")
         )
 
         consumed_kw = None
         if discharge_ramp_active and entities.get("consumption_sensor"):
             consumption_state = await self.ha.get_state(entities["consumption_sensor"])
+            scale = self._scale_for(consumption_state)
             try:
                 consumed_kw = (
-                    float(consumption_state["state"]) / self.power_entity_scale
-                    if consumption_state
+                    float(consumption_state["state"]) / scale
+                    if consumption_state and scale
                     else None
                 )
             except (TypeError, ValueError):
@@ -201,7 +215,7 @@ class Scheduler:
 
         mode = merged.get("ems_mode")
 
-        if mode_window and mode in DISCHARGE_MODES:
+        if mode_window and mode in discharge_modes:
             if (
                 discharge_ramp_active
                 and soc_value is not None
@@ -228,47 +242,65 @@ class Scheduler:
             if flat_export is not None:
                 merged["export_limit_kw"] = flat_export
 
-        if mode_window and mode in CHARGE_MODES:
+        if mode_window and mode in charge_modes:
             if (
                 mode_window.get("charge_ramp_enabled")
                 and soc_value is not None
                 and capacity_kwh
                 and mode_window.get("charge_target_percent") is not None
             ):
-                self._apply_charge_ramp(mode_window, merged, soc_value, capacity_kwh, now, status)
+                self._apply_charge_ramp(
+                    mode_window, merged, soc_value, capacity_kwh, now, status,
+                    profile["charge_ramp_field"],
+                )
 
+        if mode and mode not in {value for value, _ in profile["modes"]}:
+            status["errors"].append(
+                f"EMS mode {mode!r} isn't a {profile['label']} mode - not applied (edit the schedule)"
+            )
+            merged.pop("ems_mode")
         await self._apply_ems_mode(entities, merged, status)
-        await self._apply_number(
-            entities.get("charge_limit_number"),
-            merged.get("charge_power_kw"),
-            status,
-            "charge limit",
-            unit="kW",
-            scale_to_entity=self.power_entity_scale,
-        )
-        await self._apply_number(
-            entities.get("discharge_limit_number"),
-            merged.get("discharge_power_kw"),
-            status,
-            "discharge limit",
-            unit="kW",
-            scale_to_entity=self.power_entity_scale,
-        )
+        if profile["power_control"] == "shared":
+            # One power setpoint, meaning charge or discharge power depending
+            # on the EMS mode - left alone in modes that don't use it.
+            if mode in charge_modes:
+                await self._apply_number(
+                    entities.get("ems_power_limit_number"),
+                    merged.get("charge_power_kw"),
+                    status,
+                    "EMS power limit (charge)",
+                )
+            elif mode in discharge_modes:
+                await self._apply_number(
+                    entities.get("ems_power_limit_number"),
+                    merged.get("discharge_power_kw"),
+                    status,
+                    "EMS power limit (discharge)",
+                )
+        else:
+            await self._apply_number(
+                entities.get("charge_limit_number"),
+                merged.get("charge_power_kw"),
+                status,
+                "charge limit",
+            )
+            await self._apply_number(
+                entities.get("discharge_limit_number"),
+                merged.get("discharge_power_kw"),
+                status,
+                "discharge limit",
+            )
         await self._apply_number(
             entities.get("import_limit_number"),
             merged.get("import_limit_kw"),
             status,
             "import limit",
-            unit="kW",
-            scale_to_entity=self.power_entity_scale,
         )
         await self._apply_number(
             entities.get("export_limit_number"),
             merged.get("export_limit_kw"),
             status,
             "export limit",
-            unit="kW",
-            scale_to_entity=self.power_entity_scale,
         )
 
         cfg["status"] = status
@@ -347,14 +379,16 @@ class Scheduler:
         capacity_kwh: float,
         now: datetime,
         status: dict,
+        target_field: str = "import_limit_kw",
     ) -> None:
         """Same idea as the discharge ramp, but for charging up to a target
         SoC by the end of the window instead of a flat import limit. Only
-        the import limit is touched - the schedule's charge power setting
-        (if any) is left as configured."""
+        target_field is touched - the import limit where the inverter has
+        one (the schedule's charge power is then left as configured and
+        acts as the ceiling), otherwise charge power itself."""
         soc_target = window["charge_target_percent"]
         if soc_value >= soc_target:
-            merged["import_limit_kw"] = 0
+            merged[target_field] = 0
             return
         end_dt = _window_end_datetime(window, now)
         remaining_hours = max((end_dt - now).total_seconds() / 3600, MIN_RAMP_HOURS)
@@ -364,9 +398,10 @@ class Scheduler:
         if ceiling is not None:
             required_kw = min(required_kw, ceiling)
         required_kw = max(required_kw, 0)
-        merged["import_limit_kw"] = round(required_kw, 3)
+        merged[target_field] = round(required_kw, 3)
+        label = "import limit" if target_field == "import_limit_kw" else "charge power"
         status["actions"].append(
-            f"Charge ramp: {soc_value:.1f}% -> {soc_target}% over {remaining_hours:.2f}h -> import limit {required_kw:.2f}kW"
+            f"Charge ramp: {soc_value:.1f}% -> {soc_target}% over {remaining_hours:.2f}h -> {label} {required_kw:.2f}kW"
         )
 
     async def _send_notification(self, window: dict, status: dict) -> None:
@@ -403,19 +438,35 @@ class Scheduler:
         desired: Optional[float],
         status: dict,
         label: str,
-        unit: str = "",
-        scale_to_entity: float = 1.0,
+        unit: str = "kW",
     ) -> None:
-        """desired is in UI units (e.g. kW); scale_to_entity converts UI
-        units to the entity's native units (e.g. 1000 for kW -> W)."""
+        """desired is in the UI's kW; it's converted to the entity's own
+        unit (see _scale_for) before writing."""
         if not entity_id or desired is None:
             return
         current = await self.ha.get_state(entity_id)
+        scale_to_entity = self._scale_for(current)
+        if scale_to_entity is None:
+            entity_unit = current["attributes"].get("unit_of_measurement")
+            status["errors"].append(
+                f"{label}: {entity_id} is in {entity_unit!r}, not W or kW - can't set {desired}{unit}"
+            )
+            return
         try:
             current_native = float(current["state"]) if current else None
         except (TypeError, ValueError):
             current_native = None
         desired_native = desired * scale_to_entity
+        # Snap to the entity's step (e.g. GoodWe's EMS power limit only
+        # takes multiples of 100W) so a ramp-computed value is accepted and
+        # compares equal to what the entity then reports back.
+        step = (current or {}).get("attributes", {}).get("step")
+        try:
+            step = float(step) if step else None
+        except (TypeError, ValueError):
+            step = None
+        if step:
+            desired_native = round(round(desired_native / step) * step, 6)
         # Compare in native units, but tolerate float rounding.
         if current_native is not None and abs(current_native - desired_native) < 1e-6:
             return
@@ -424,5 +475,5 @@ class Scheduler:
             current_native / scale_to_entity if current_native is not None else None
         )
         (status["actions"] if ok else status["errors"]).append(
-            f"{label}: {current_display}{unit} -> {desired}{unit}"
+            f"{label}: {current_display}{unit} -> {desired_native / scale_to_entity:g}{unit}"
         )

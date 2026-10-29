@@ -4,6 +4,7 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
@@ -11,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
 from ha_client import HAClient
+from profiles import DEFAULT_INVERTER, PROFILES
 from scheduler import Scheduler
 import storage
 
@@ -75,9 +77,11 @@ class EntitiesPayload(BaseModel):
     import_limit_number: str = ""
     export_limit_number: str = ""
     consumption_sensor: str = ""
+    ems_power_limit_number: str = ""
 
 
 class SettingsPayload(BaseModel):
+    inverter_type: Literal[tuple(PROFILES)] = DEFAULT_INVERTER
     battery_capacity_kwh: float | None = None
 
 
@@ -107,6 +111,11 @@ class Window(BaseModel):
 
 class WindowsPayload(BaseModel):
     windows: list[Window]
+
+
+@app.get("/api/profiles")
+async def get_profiles():
+    return PROFILES
 
 
 @app.get("/api/config")

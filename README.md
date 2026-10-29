@@ -1,7 +1,9 @@
 # EMS Manager (Home Assistant Add-on)
 
-Schedule-driven control for a Sigenergy battery/inverter system via the
-**Sigenergy-Local-Modbus** HACS integration. Runs as a Docker add-on inside
+Schedule-driven control for a home battery/inverter system. Supports
+**Sigenergy** (via the **Sigenergy-Local-Modbus** HACS integration) and
+**GoodWe** (via the [home-assistant-goodwe-inverter](https://github.com/mletenay/home-assistant-goodwe-inverter)
+HACS integration). Runs as a Docker add-on inside
 Home Assistant OS, shows up in the sidebar (via Ingress), and continuously
 enforces your configured EMS mode, discharge power, and grid import/export
 limits during set time windows — re-applying them if anything else changes
@@ -38,9 +40,10 @@ those values while a window is active.
    `ems_manager/` folder straight into `/addons/local/`.
 2. Refresh the store, find **EMS Manager**, install it.
 3. Start it, then open it from the sidebar (look for the battery icon).
-4. On first load, fill in the **Entities** section with your actual
-   Sigenergy Local Modbus entity IDs — the fields autocomplete against your
-   live Home Assistant entities as you type.
+4. On first load, go to **Setup → System**, pick your **Inverter**
+   (Sigenergy or GoodWe) and click **Save settings**. Then fill in the
+   **Entities** section with your actual entity IDs — the fields
+   autocomplete against your live Home Assistant entities as you type.
 5. Add your schedule windows (e.g. your free-power period, your high-PV
    discharge-rate period) and save.
 
@@ -48,6 +51,10 @@ No Home Assistant automations are required for this logic once it's set up
 — you can disable/remove the ones you were using for this specific purpose.
 
 ## Entities you'll need to map
+
+The fields shown depend on the inverter selected in **Setup → System**.
+
+### Sigenergy
 
 | Field | What it is |
 |---|---|
@@ -63,24 +70,66 @@ No Home Assistant automations are required for this logic once it's set up
 If your integration doesn't expose import/export limit registers locally,
 leave those fields blank — the rest of the app still works.
 
+### GoodWe
+
+| Field | What it is | Typical entity |
+|---|---|---|
+| EMS mode (select) | The inverter's EMS mode select | `select.goodwe_ems_mode` |
+| EMS power limit (number) | Charge power in a charging EMS mode, discharge power in a discharging one | `number.goodwe_ems_power_limit` |
+| Battery SoC (sensor) | Used for the discharge cutoff and ramping | `sensor.goodwe_battery_state_of_charge` |
+| Grid export limit (number) | Must be in W (not %) | `number.goodwe_grid_export_limit` |
+| Home consumption power (sensor, optional) | Used by the discharge ramp to net off house load | `sensor.goodwe_house_consumption` |
+
+Entity IDs include your device name, so yours may differ (e.g.
+`select.garage_goodwe_ems_mode`). Notes for GoodWe:
+
+- The EMS mode and EMS power limit entities may be disabled by default in
+  the integration — enable them under the device's entities if they're
+  missing.
+- GoodWe has a single EMS power limit instead of separate charge/discharge
+  limits. In a charging EMS mode the schedule's **Charge power** is written
+  to it; in a discharging mode, its **Discharge power**; in any other mode
+  it's left alone.
+- There's no grid import limit, so that field is hidden on schedules, and
+  the charge ramp paces **charge power** (the EMS power limit) directly
+  instead of an import limit.
+- The grid export limit only takes effect while the integration's
+  **Grid export limit switch** is on. The add-on doesn't control that switch.
+
 ## Units
 
 Power fields in the UI (charge/discharge power, import/export limits) are
-entered in **kW**. By default these are converted to Watts when written to
-your Sigenergy number entities, since that's the typical native unit for
-the Local Modbus integration's power-limit entities. If your entities are
-already natively in kW, set the add-on option `power_entities_unit` to
-`kW` (Settings → Add-ons → EMS Manager → Configuration) so no
-conversion happens.
+entered in **kW** and converted to each entity's own unit (W or kW, read
+from its `unit_of_measurement`) when written. Values are also rounded to
+the entity's step (e.g. GoodWe's EMS power limit only takes multiples of
+100W). The add-on option `power_entities_unit` (Settings → Add-ons → EMS
+Manager → Configuration) is only used as a fallback for entities that
+don't report a unit.
 
 ## EMS mode
 
-The EMS mode field is a dropdown matching the exact options exposed by the
-Sigenergy Local Modbus select entity: PCS Remote Control, Standby, Maximum
-Self Consumption, Command Charging (Grid First), Command Charging (PV
-First), Command Discharging (PV First), Command Discharging (ESS First),
-and V2G. Leave it on "-- don't manage --" for a schedule that shouldn't
-touch the EMS mode at all.
+The EMS mode field is a dropdown of the selected inverter's modes. Leave it
+on "-- don't manage --" for a schedule that shouldn't touch the EMS mode at
+all.
+
+- **Sigenergy:** PCS Remote Control, Standby, Maximum Self Consumption,
+  Command Charging (Grid First), Command Charging (PV First), Command
+  Discharging (PV First), Command Discharging (ESS First), and V2G. The
+  "Command Charging" options count as charging modes and the "Command
+  Discharging" options as discharging modes (for ramping and power).
+- **GoodWe:** Auto (self-use), Battery standby, Conserve, Charge battery,
+  Import AC, Charge PV, Discharge battery, Export AC, and Discharge PV.
+  Charge battery / Import AC / Charge PV are charging modes; Discharge
+  battery / Export AC / Discharge PV are discharging modes.
+
+The add-on does nothing outside schedule windows, so the inverter stays in
+whatever mode the last schedule set. To return to normal operation after
+a forced charge/discharge, add a schedule covering the rest of the day
+with a self-use mode (Maximum Self Consumption / Auto).
+
+If you switch inverter type, schedules keep their old EMS mode, shown as
+"(not a … mode)" in the dropdown. It isn't applied (the Status tab shows
+an error) until you pick a new one.
 
 ## Smooth discharge/charge ramping
 
@@ -175,7 +224,7 @@ rule out cache entirely.
 ## Troubleshooting: values not being applied
 
 If the UI loads and saves fine but scheduled values never actually land on
-your Sigenergy entities, check the add-on log for:
+your inverter entities, check the add-on log for:
 
 ```
 ERROR sigen_ems.ha_client: SUPERVISOR_TOKEN is empty - calls to Home Assistant will fail.

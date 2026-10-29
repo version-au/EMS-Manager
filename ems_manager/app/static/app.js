@@ -1,22 +1,36 @@
-const ENTITY_FIELDS = [
-  ["ems_mode_select", "EMS mode (select entity)"],
-  ["ems_mode_enable_switch", "Remote EMS enable (switch, optional)"],
-  ["charge_limit_number", "Charge power limit (number entity)"],
-  ["discharge_limit_number", "Discharge power limit (number entity)"],
-  ["soc_sensor", "Battery SoC (sensor entity)"],
-  ["import_limit_number", "Grid import limit (number entity)"],
-  ["export_limit_number", "Grid export limit (number entity)"],
-  ["consumption_sensor", "Home consumption power (sensor entity, optional)"],
-];
+// Per-inverter entity lists and EMS modes, from profiles.py via api/profiles.
+let profiles = {};
+// Every entity mapping saved so far, including ones for fields the current
+// inverter doesn't show, so switching inverter type and back loses nothing.
+let savedEntities = {};
 
-// Must match scheduler.py's DISCHARGE_MODES / CHARGE_MODES exactly.
-const DISCHARGE_MODES = new Set(["Command Discharging (PV First)", "Command Discharging (ESS First)"]);
-const CHARGE_MODES = new Set(["Command Charging (Grid First)", "Command Charging (PV First)"]);
+function currentProfile() {
+  return profiles[document.getElementById("inverter-type").value] || Object.values(profiles)[0];
+}
+
+function fillModeOptions(select, value) {
+  const profile = currentProfile();
+  select.innerHTML = "";
+  const options = [["", "-- don't manage --"], ...profile.modes];
+  // Keep a mode that isn't valid for this inverter visible rather than
+  // silently dropping it, so the user can see what needs changing.
+  if (value && !profile.modes.some(([v]) => v === value)) {
+    options.push([value, `${value} (not a ${profile.label} mode)`]);
+  }
+  options.forEach(([v, label]) => select.add(new Option(label, v)));
+  select.value = value || "";
+}
+
+function modeLabel(value) {
+  const match = currentProfile().modes.find(([v]) => v === value);
+  return match ? match[1] : value;
+}
 
 function updateModeVisibility(node) {
+  const profile = currentProfile();
   const mode = node.querySelector(".w-ems-mode").value;
-  const isDischarge = DISCHARGE_MODES.has(mode);
-  const isCharge = CHARGE_MODES.has(mode);
+  const isDischarge = profile.discharge_modes.includes(mode);
+  const isCharge = profile.charge_modes.includes(mode);
   const showFor = (el, show) => {
     // labels need flex (matches the rest of the form's layout); the plain
     // hint paragraph needs block - "" won't work here since it would just
@@ -28,6 +42,9 @@ function updateModeVisibility(node) {
   // "Other" covers every mode except discharging - charging, self
   // consumption, standby, PCS remote, V2G, and no mode selected at all.
   node.querySelectorAll(".mode-other-only").forEach((el) => showFor(el, !isDischarge));
+  node.querySelectorAll(".import-limit-field").forEach((el) => showFor(el, profile.has_import_limit));
+  node.querySelector(".charge-ramp-text").textContent =
+    profile.charge_ramp_field === "import_limit_kw" ? "Ramp import limit" : "Ramp charge power";
 }
 
 function updateSummaryBadges(node) {
@@ -35,7 +52,7 @@ function updateSummaryBadges(node) {
   const end = node.querySelector(".w-end").value;
   node.querySelector(".w-time-badge").textContent = start && end ? `${start}–${end}` : "no time set";
   const mode = node.querySelector(".w-ems-mode").value;
-  node.querySelector(".w-mode-badge").textContent = mode || "no mode set";
+  node.querySelector(".w-mode-badge").textContent = mode ? modeLabel(mode) : "no mode set";
 }
 
 let entityDatalistBuilt = false;
@@ -67,17 +84,20 @@ async function ensureEntityDatalist() {
   }
 }
 
-function renderEntityGrid(entities) {
+function renderEntityGrid() {
+  const profile = currentProfile();
+  document.getElementById("inverter-label").textContent = profile.label;
   const grid = document.getElementById("entity-grid");
   grid.innerHTML = "";
-  ENTITY_FIELDS.forEach(([key, label]) => {
+  profile.entities.forEach(([key, label, placeholder]) => {
     const wrapper = document.createElement("label");
     wrapper.textContent = label;
     const input = document.createElement("input");
     input.type = "text";
     input.dataset.key = key;
-    input.value = entities[key] || "";
-    input.placeholder = "domain.entity_id";
+    input.value = savedEntities[key] || "";
+    input.placeholder = placeholder || "domain.entity_id";
+    input.setAttribute("list", "entity-options");
     wrapper.appendChild(input);
     grid.appendChild(wrapper);
   });
@@ -85,11 +105,10 @@ function renderEntityGrid(entities) {
 }
 
 function collectEntities() {
-  const out = {};
   document.querySelectorAll("#entity-grid input").forEach((inp) => {
-    out[inp.dataset.key] = inp.value.trim();
+    savedEntities[inp.dataset.key] = inp.value.trim();
   });
-  return out;
+  return { ...savedEntities };
 }
 
 function renderWindow(win) {
@@ -105,7 +124,7 @@ function renderWindow(win) {
   node.querySelector(".w-enabled").checked = win.enabled !== false;
   node.querySelector(".w-start").value = win.start || "";
   node.querySelector(".w-end").value = win.end || "";
-  node.querySelector(".w-ems-mode").value = win.ems_mode || "";
+  fillModeOptions(node.querySelector(".w-ems-mode"), win.ems_mode);
   node.querySelector(".w-charge").value = win.charge_power_kw ?? "";
   node.querySelector(".w-discharge").value = win.discharge_power_kw ?? "";
   node.querySelector(".w-soc-stop").value = win.soc_stop_percent ?? "";
@@ -219,9 +238,30 @@ function flashSaved(id) {
 
 async function loadConfig() {
   const cfg = await fetchJSON("api/config");
-  renderEntityGrid(cfg.entities);
+  savedEntities = { ...cfg.entities };
+  document.getElementById("inverter-type").value = cfg.settings?.inverter_type || "sigenergy";
+  renderEntityGrid();
   document.getElementById("battery-capacity").value = cfg.settings?.battery_capacity_kwh ?? "";
   renderWindows(cfg.windows || []);
+}
+
+async function loadProfiles() {
+  profiles = await fetchJSON("api/profiles");
+  const select = document.getElementById("inverter-type");
+  Object.entries(profiles).forEach(([key, p]) => select.add(new Option(p.label, key)));
+}
+
+function onInverterTypeChange() {
+  // Re-render entity fields and each schedule's mode list for the new
+  // inverter in place, keeping anything typed but not yet saved.
+  collectEntities();
+  renderEntityGrid();
+  document.querySelectorAll("#windows-list [data-window]").forEach((node) => {
+    const select = node.querySelector(".w-ems-mode");
+    fillModeOptions(select, select.value);
+    updateModeVisibility(node);
+    updateSummaryBadges(node);
+  });
 }
 
 async function saveEntities() {
@@ -238,7 +278,10 @@ async function saveSettings() {
   await fetchJSON("api/settings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ battery_capacity_kwh: raw === "" ? null : Number(raw) }),
+    body: JSON.stringify({
+      inverter_type: document.getElementById("inverter-type").value,
+      battery_capacity_kwh: raw === "" ? null : Number(raw),
+    }),
   });
   flashSaved("settings-save-msg");
 }
@@ -364,7 +407,9 @@ document.getElementById("add-window").addEventListener("click", () => {
   document.getElementById("windows-list").appendChild(node);
 });
 
-loadConfig();
+document.getElementById("inverter-type").addEventListener("change", onInverterTypeChange);
+
+loadProfiles().then(loadConfig);
 refreshStatus();
 initTabs();
 setInterval(refreshStatus, 10000);

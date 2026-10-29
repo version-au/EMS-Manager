@@ -22,7 +22,7 @@
     <div class="tab-panel" id="tab-setup">
       <section class="card" id="entities-card">
         <h2>Entities</h2>
-        <p class="hint">Map this app to your Sigenergy Local Modbus entities. Start typing to search your Home Assistant entities.</p>
+        <p class="hint">Map this app to your <span id="inverter-label">inverter</span> entities. Start typing to search your Home Assistant entities.</p>
         <div class="entity-grid" id="entity-grid"></div>
         <button id="save-entities">Save entities</button>
         <span class="save-msg" id="entities-save-msg"></span>
@@ -30,8 +30,10 @@
 
       <section class="card" id="settings-card">
         <h2>System</h2>
-        <p class="hint">Used to pace the discharge/charge ramp settings on schedules below — how much energy a 1% SoC change represents.</p>
+        <label>Inverter <select id="inverter-type"></select></label>
+        <p class="hint">Changes which entities to map above and which EMS modes schedules can use. Click Save settings to apply it.</p>
         <label>Battery capacity (kWh) <input type="number" step="0.1" id="battery-capacity" /></label>
+        <p class="hint">Used to pace the discharge/charge ramp settings on schedules — how much energy a 1% SoC change represents.</p>
         <br />
         <button id="save-settings">Save settings</button>
         <span class="save-msg" id="settings-save-msg"></span>
@@ -50,7 +52,7 @@
     <div class="tab-panel" id="tab-schedules">
       <section class="card" id="windows-card">
         <h2>Schedules</h2>
-        <p class="hint">Each schedule window is applied while active, and re-applied automatically if something else changes the values during that window. Power fields are entered in kW and converted to your entities' native unit (set via the add-on's "power_entities_unit" option — default kW). Use the arrows to reorder — when two active schedules overlap, whichever is lower in the list wins on any field they both set. Click a schedule's row to expand it.</p>
+        <p class="hint">Each schedule window is applied while active, and re-applied automatically if something else changes the values during that window. Power fields are entered in kW and converted to each entity's own unit (W or kW). Use the arrows to reorder — when two active schedules overlap, whichever is lower in the list wins on any field they both set. Click a schedule's row to expand it.</p>
         <div id="windows-list"></div>
         <button id="add-window">+ Add schedule</button>
         <button id="save-windows">Save schedules</button>
@@ -102,15 +104,7 @@
         <div class="window-row">
           <label>EMS mode
             <select class="w-ems-mode">
-              <option value="">-- don't manage --</option>
-              <option value="PCS Remote Control">PCS Remote Control</option>
-              <option value="Standby">Standby</option>
-              <option value="Maximum Self Consumption">Maximum Self Consumption</option>
-              <option value="Command Charging (Grid First)">Command Charging (Grid First)</option>
-              <option value="Command Charging (PV First)">Command Charging (PV First)</option>
-              <option value="Command Discharging (PV First)">Command Discharging (PV First)</option>
-              <option value="Command Discharging (ESS First)">Command Discharging (ESS First)</option>
-              <option value="V2G">V2G</option>
+              <!-- options filled from the selected inverter's profile -->
             </select>
           </label>
         </div>
@@ -120,7 +114,7 @@
           <label>Stop discharge at SoC (%) <input type="number" class="w-soc-stop" /></label>
         </div>
         <div class="window-row">
-          <label>Import limit (kW) <input type="number" step="0.1" class="w-import" /></label>
+          <label class="import-limit-field">Import limit (kW) <input type="number" step="0.1" class="w-import" /></label>
           <label class="mode-charge-only">Charge target SoC (%) <input type="number" class="w-charge-target-soc" /></label>
           <label class="mode-discharge-only">Min export limit (kW) <input type="number" step="0.1" class="w-export-min" /></label>
           <label class="mode-discharge-only">Max export limit (kW) <input type="number" step="0.1" class="w-export-max" /></label>
@@ -128,7 +122,7 @@
         </div>
         <div class="window-row ramp-fields">
           <label class="enabled-label mode-discharge-only"><input type="checkbox" class="w-discharge-ramp" /> Ramp export limit</label>
-          <label class="enabled-label mode-charge-only"><input type="checkbox" class="w-charge-ramp" /> Ramp import limit</label>
+          <label class="enabled-label mode-charge-only"><input type="checkbox" class="w-charge-ramp" /> <span class="charge-ramp-text">Ramp import limit</span></label>
         </div>
         <p class="hint ramp-fields mode-discharge-only">When ramping, the export limit is calculated dynamically each poll and kept within your Min/Max export limit range above.</p>
         <div class="window-row notify-row">

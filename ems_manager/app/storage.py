@@ -24,8 +24,10 @@ DEFAULT_CONFIG = {
         "import_limit_number": "",
         "export_limit_number": "",
         "consumption_sensor": "",
+        "ems_power_limit_number": "",
     },
     "settings": {
+        "inverter_type": "sigenergy",
         "battery_capacity_kwh": None,
     },
     "windows": [],
