@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
     await ha_client.close()
 
 
-app = FastAPI(title="Sigenergy EMS Manager", lifespan=lifespan)
+app = FastAPI(title="EMS Manager", lifespan=lifespan)
 
 STATIC_DIR = Path(__file__).parent / "static"
 

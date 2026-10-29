@@ -1,4 +1,4 @@
-# Sigenergy EMS Manager (Home Assistant Add-on)
+# EMS Manager (Home Assistant Add-on)
 
 Schedule-driven control for a Sigenergy battery/inverter system via the
 **Sigenergy-Local-Modbus** HACS integration. Runs as a Docker add-on inside
@@ -30,11 +30,11 @@ those values while a window is active.
 
 1. In Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ → Repositories**,
    and add the URL of the GitHub repo you push this folder structure to
-   (the repo root needs `repository.json` and the `sigenergy_ems_manager/`
+   (the repo root needs `repository.json` and the `ems_manager/`
    folder as siblings — that's already how this zip is laid out). If
    you're running it as a local add-on instead, drop the
-   `sigenergy_ems_manager/` folder straight into `/addons/local/`.
-2. Refresh the store, find **Sigenergy EMS Manager**, install it.
+   `ems_manager/` folder straight into `/addons/local/`.
+2. Refresh the store, find **EMS Manager**, install it.
 3. Start it, then open it from the sidebar (look for the battery icon).
 4. On first load, fill in the **Entities** section with your actual
    Sigenergy Local Modbus entity IDs — the fields autocomplete against your
@@ -68,7 +68,7 @@ entered in **kW**. By default these are converted to Watts when written to
 your Sigenergy number entities, since that's the typical native unit for
 the Local Modbus integration's power-limit entities. If your entities are
 already natively in kW, set the add-on option `power_entities_unit` to
-`kW` (Settings → Add-ons → Sigenergy EMS Manager → Configuration) so no
+`kW` (Settings → Add-ons → EMS Manager → Configuration) so no
 conversion happens.
 
 ## EMS mode

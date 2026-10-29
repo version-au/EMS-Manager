@@ -1,8 +1,8 @@
-name: "Sigenergy EMS Manager"
+name: "EMS Manager"
 version: "0.8.0"
-slug: "sigenergy_ems_manager"
+slug: "ems_manager"
 description: "Schedule-driven EMS work mode, battery discharge, and grid import/export limit management for Sigenergy systems via the Local Modbus integration"
-url: "https://github.com/version-au/Sigenergy-EMS-Manager"
+url: "https://github.com/version-au/EMS-Manager"
 arch:
   - aarch64
   - amd64
