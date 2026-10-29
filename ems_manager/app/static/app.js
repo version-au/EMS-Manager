@@ -43,6 +43,11 @@ function updateModeVisibility(node) {
   // consumption, standby, PCS remote, V2G, and no mode selected at all.
   node.querySelectorAll(".mode-other-only").forEach((el) => showFor(el, !isDischarge));
   node.querySelectorAll(".import-limit-field").forEach((el) => showFor(el, profile.has_import_limit));
+  // With a shared power setpoint only the field for the current direction
+  // does anything; separate limits apply in every mode, so always show.
+  const byMode = profile.power_control === "shared";
+  node.querySelectorAll(".charge-power-field").forEach((el) => showFor(el, !byMode || isCharge));
+  node.querySelectorAll(".discharge-power-field").forEach((el) => showFor(el, !byMode || isDischarge));
   node.querySelector(".charge-ramp-text").textContent =
     profile.charge_ramp_field === "import_limit_kw" ? "Ramp import limit" : "Ramp charge power";
 }

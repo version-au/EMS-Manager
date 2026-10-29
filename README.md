@@ -90,6 +90,9 @@ Entity IDs include your device name, so yours may differ (e.g.
   limits. In a charging EMS mode the schedule's **Charge power** is written
   to it; in a discharging mode, its **Discharge power**; in any other mode
   it's left alone.
+  So schedules only show **Charge power** in a charging mode, and
+  **Discharge power** / **Stop discharge at SoC** in a discharging mode
+  (values are kept if hidden).
 - There's no grid import limit, so that field is hidden on schedules, and
   the charge ramp paces **charge power** (the EMS power limit) directly
   instead of an import limit.
