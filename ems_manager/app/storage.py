@@ -31,6 +31,9 @@ DEFAULT_CONFIG = {
         "battery_capacity_kwh": None,
     },
     "windows": [],
+    # Pause button for all scheduling: while true the scheduler still tracks
+    # which windows would be active but writes nothing to the inverter.
+    "paused": False,
     "status": {},
 }
 
@@ -112,6 +115,17 @@ def load_config() -> dict:
         except (json.JSONDecodeError, OSError) as exc:
             log.error("Failed to read config, falling back to defaults: %s", exc)
             return json.loads(json.dumps(DEFAULT_CONFIG))
+
+
+def save_status(status: dict) -> None:
+    """Write only the scheduler's status. A tick holds its copy of the config
+    across several awaits on Home Assistant, so saving that whole copy back
+    would undo anything the UI saved in the meantime (a schedule toggle, a
+    pause) - reload under the lock and replace just the status instead."""
+    with _lock:
+        cfg = load_config()
+        cfg["status"] = status
+        save_config(cfg)
 
 
 def save_config(data: dict) -> None:

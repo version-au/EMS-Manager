@@ -7,6 +7,7 @@
   --accent: #4fb0ff;
   --good: #35c37c;
   --bad: #ff6b6b;
+  --warn: #f5b942;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -39,6 +40,53 @@ h2 { font-size: 1.05rem; margin: 0 0 6px; }
   max-width: 60%;
   text-align: right;
   white-space: normal;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  max-width: 70%;
+}
+
+.header-right .pill {
+  max-width: none;
+}
+
+button.pause-btn {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  background: transparent;
+  color: var(--warn);
+  border: 1px solid var(--warn);
+  white-space: nowrap;
+}
+
+button.pause-btn.is-paused {
+  background: var(--good);
+  border-color: var(--good);
+  color: #051019;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.paused-banner {
+  max-width: 900px;
+  margin: 0 auto 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  color: var(--warn);
+  font-size: 0.85rem;
+}
+
+.paused-banner[hidden] {
+  display: none;
 }
 
 main {
@@ -188,6 +236,76 @@ button#add-window {
 .summary-enabled {
   margin: 0;
   flex-shrink: 0;
+}
+
+/* On/off switch: a visually hidden checkbox driving a sliding track, so
+   collectWindows() and the API still just read .checked. */
+.switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--good);
+  user-select: none;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-track {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--good);
+  transition: background 0.15s;
+}
+
+.switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 16px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.15s;
+}
+
+.switch input:not(:checked) + .switch-track {
+  background: var(--border);
+}
+
+.switch input:not(:checked) + .switch-track::after {
+  left: 2px;
+}
+
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.switch-text {
+  width: 2em;
+}
+
+.window.is-disabled .switch {
+  color: var(--muted);
+}
+
+.window.is-disabled .w-name,
+.window.is-disabled .badge,
+.window.is-disabled .active-dot,
+.window.is-disabled .window-body {
+  opacity: 0.45;
 }
 
 .badge {

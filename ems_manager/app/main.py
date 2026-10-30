@@ -113,6 +113,14 @@ class WindowsPayload(BaseModel):
     windows: list[Window]
 
 
+class EnabledPayload(BaseModel):
+    enabled: bool
+
+
+class PausedPayload(BaseModel):
+    paused: bool
+
+
 @app.get("/api/profiles")
 async def get_profiles():
     return PROFILES
@@ -145,6 +153,29 @@ async def set_windows(payload: WindowsPayload):
     cfg["windows"] = [w.model_dump() for w in payload.windows]
     storage.save_config(cfg)
     return cfg
+
+
+@app.post("/api/windows/{window_id}/enabled")
+async def set_window_enabled(window_id: str, payload: EnabledPayload):
+    """Flip one schedule on/off straight from its toggle, without saving any
+    other unsaved edits in the Schedules tab along with it."""
+    cfg = storage.load_config()
+    window = next((w for w in cfg["windows"] if w.get("id") == window_id), None)
+    if window is None:
+        raise HTTPException(status_code=404, detail=f"No saved schedule with id {window_id!r}")
+    window["enabled"] = payload.enabled
+    storage.save_config(cfg)
+    log.info("Schedule %r %s", window_id, "enabled" if payload.enabled else "disabled")
+    return window
+
+
+@app.post("/api/paused")
+async def set_paused(payload: PausedPayload):
+    cfg = storage.load_config()
+    cfg["paused"] = payload.paused
+    storage.save_config(cfg)
+    log.info("Scheduling %s", "paused" if payload.paused else "resumed")
+    return {"paused": payload.paused}
 
 
 @app.get("/api/backup")

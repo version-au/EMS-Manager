@@ -9,8 +9,15 @@
 <body>
   <header>
     <h1>EMS Manager</h1>
-    <div id="status-pill" class="pill">loading…</div>
+    <div class="header-right">
+      <div id="status-pill" class="pill">loading…</div>
+      <button id="pause-toggle" class="pause-btn" title="Stop the scheduler changing anything on the inverter until you resume">Pause scheduling</button>
+    </div>
   </header>
+
+  <div id="paused-banner" class="paused-banner" hidden>
+    Scheduling is paused. Nothing is being written to the inverter until you click <strong>Resume scheduling</strong>.
+  </div>
 
   <nav class="tab-bar" id="tab-bar">
     <button class="tab-btn" data-tab="setup">Setup</button>
@@ -52,7 +59,7 @@
     <div class="tab-panel" id="tab-schedules">
       <section class="card" id="windows-card">
         <h2>Schedules</h2>
-        <p class="hint">Each schedule window is applied while active, and re-applied automatically if something else changes the values during that window. Power fields are entered in kW and converted to each entity's own unit (W or kW). Use the arrows to reorder — when two active schedules overlap, whichever is lower in the list wins on any field they both set. Click a schedule's row to expand it.</p>
+        <p class="hint">Each schedule window is applied while active, and re-applied automatically if something else changes the values during that window. Power fields are entered in kW and converted to each entity's own unit (W or kW). Use the arrows to reorder — when two active schedules overlap, whichever is lower in the list wins on any field they both set. The On/Off switch on each schedule saves straight away; everything else needs <strong>Save schedules</strong>. Click a schedule's row to expand it.</p>
         <div id="windows-list"></div>
         <button id="add-window">+ Add schedule</button>
         <button id="save-windows">Save schedules</button>
@@ -76,7 +83,11 @@
           <button class="move-down" title="Move down">&#9660;</button>
         </div>
         <span class="active-dot" title="Currently active"></span>
-        <label class="enabled-label summary-enabled"><input type="checkbox" class="w-enabled" checked /></label>
+        <label class="switch summary-enabled" title="Turn this schedule on or off (saves immediately)">
+          <input type="checkbox" class="w-enabled" checked />
+          <span class="switch-track"></span>
+          <span class="switch-text">On</span>
+        </label>
         <input type="text" class="w-name" placeholder="Schedule name" />
         <span class="w-time-badge badge"></span>
         <span class="w-mode-badge badge"></span>

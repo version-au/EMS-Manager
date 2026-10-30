@@ -188,6 +188,18 @@ whichever one is *lower* in the list wins on any field they both set (EMS
 mode, charge/discharge power, limits). Non-overlapping schedules are
 unaffected by order.
 
+## Turning schedules on/off and pausing
+
+- Each schedule row has an **On/Off** switch. It saves the moment you
+  click it (only that schedule's on/off state - other unsaved edits still
+  need **Save schedules**). Off schedules are greyed out and never apply.
+  A brand-new schedule's switch is saved along with **Save schedules**.
+- **Pause scheduling** in the header stops the add-on writing anything to
+  the inverter until you click **Resume scheduling**. Each schedule keeps
+  its own On/Off setting, the pause survives add-on restarts, and the
+  Status tab shows `"paused": true`. Whatever the inverter was last set to
+  stays in place while paused - pausing doesn't restore anything.
+
 ## Per-schedule notifications
 
 Each schedule has an optional **Notify when this schedule becomes active**
@@ -265,6 +277,12 @@ fixed at the source, and `storage.py` also auto-repairs any window still
 carrying that bad id (regenerating a proper one from its name) the next
 time the config loads - no manual fix needed if you hit this on an
 earlier version.
+
+## Added in v0.10.0: schedule on/off switches and pause
+
+See "Turning schedules on/off and pausing". The scheduler now also writes
+only its status back to the config on each poll, so a change saved from the
+UI mid-poll is no longer overwritten.
 
 ## Changed in v0.9.0: GoodWe support
 

@@ -125,11 +125,21 @@ class Scheduler:
 
         status = {
             "last_run": now.isoformat(timespec="seconds"),
+            "paused": bool(cfg.get("paused")),
             "active_window_ids": [w["id"] for w in active],
             "active_window_names": [w.get("name") or w["id"] for w in active],
             "actions": [],
             "errors": [],
         }
+
+        if status["paused"]:
+            # Leave the inverter alone. Active windows are still tracked, so
+            # resuming mid-window doesn't fire their "became active"
+            # notifications as if they'd only just started.
+            status["actions"].append("Scheduling paused - nothing applied")
+            self._previously_active = active_ids
+            storage.save_status(status)
+            return
 
         newly_active = active_ids - self._previously_active
         if newly_active:
@@ -139,8 +149,7 @@ class Scheduler:
 
         if not active:
             self._previously_active = active_ids
-            cfg["status"] = status
-            storage.save_config(cfg)
+            storage.save_status(status)
             return
 
         # Later windows in the list win on conflicting fields.
@@ -303,8 +312,7 @@ class Scheduler:
             "export limit",
         )
 
-        cfg["status"] = status
-        storage.save_config(cfg)
+        storage.save_status(status)
         self._previously_active = active_ids
 
     def _apply_discharge_ramp(

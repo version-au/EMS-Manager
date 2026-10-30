@@ -127,6 +127,7 @@ function renderWindow(win) {
 
   node.querySelector(".w-name").value = win.name || "";
   node.querySelector(".w-enabled").checked = win.enabled !== false;
+  updateEnabledLook(node);
   node.querySelector(".w-start").value = win.start || "";
   node.querySelector(".w-end").value = win.end || "";
   fillModeOptions(node.querySelector(".w-ems-mode"), win.ems_mode);
@@ -159,6 +160,8 @@ function renderWindow(win) {
   node.querySelector(".w-start").addEventListener("change", () => updateSummaryBadges(node));
   node.querySelector(".w-end").addEventListener("change", () => updateSummaryBadges(node));
 
+  node.querySelector(".w-enabled").addEventListener("change", () => onEnabledToggle(node));
+
   node.querySelector(".expand-toggle").addEventListener("click", () => {
     node.classList.toggle("expanded");
   });
@@ -178,6 +181,40 @@ function renderWindow(win) {
   });
 
   return node;
+}
+
+function updateEnabledLook(node) {
+  const enabled = node.querySelector(".w-enabled").checked;
+  node.classList.toggle("is-disabled", !enabled);
+  node.querySelector(".switch-text").textContent = enabled ? "On" : "Off";
+}
+
+async function onEnabledToggle(node) {
+  const checkbox = node.querySelector(".w-enabled");
+  const enabled = checkbox.checked;
+  updateEnabledLook(node);
+  // A schedule that's never been saved has nothing on the server to flip
+  // yet - its state goes in with the next "Save schedules".
+  if (!node.dataset.id) {
+    flashMsg("windows-save-msg", "New schedule - click Save schedules to keep it");
+    return;
+  }
+  checkbox.disabled = true;
+  try {
+    await fetchJSON(`api/windows/${encodeURIComponent(node.dataset.id)}/enabled`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    const name = node.querySelector(".w-name").value.trim() || "Schedule";
+    flashMsg("windows-save-msg", `${name} turned ${enabled ? "on" : "off"}`);
+  } catch (e) {
+    checkbox.checked = !enabled;
+    updateEnabledLook(node);
+    flashMsg("windows-save-msg", `Couldn't save: ${e.message}`, true);
+  } finally {
+    checkbox.disabled = false;
+  }
 }
 
 function renderWindows(windows) {
@@ -236,9 +273,44 @@ function collectWindows() {
 }
 
 function flashSaved(id) {
+  flashMsg(id, "Saved");
+}
+
+function flashMsg(id, text, isError = false) {
   const el = document.getElementById(id);
-  el.textContent = "Saved";
-  setTimeout(() => (el.textContent = ""), 2000);
+  el.textContent = text;
+  el.classList.toggle("error", isError);
+  clearTimeout(el._flashTimer);
+  el._flashTimer = setTimeout(() => (el.textContent = ""), isError ? 5000 : 2500);
+}
+
+// Pause state for all scheduling, as last loaded from or saved to the server.
+let paused = false;
+
+function renderPaused() {
+  const btn = document.getElementById("pause-toggle");
+  btn.textContent = paused ? "Resume scheduling" : "Pause scheduling";
+  btn.classList.toggle("is-paused", paused);
+  document.getElementById("paused-banner").hidden = !paused;
+}
+
+async function togglePaused() {
+  const btn = document.getElementById("pause-toggle");
+  btn.disabled = true;
+  try {
+    const result = await fetchJSON("api/paused", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paused: !paused }),
+    });
+    paused = result.paused;
+    renderPaused();
+    refreshStatus();
+  } catch (e) {
+    alert(`Couldn't ${paused ? "resume" : "pause"} scheduling: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function loadConfig() {
@@ -248,6 +320,8 @@ async function loadConfig() {
   renderEntityGrid();
   document.getElementById("battery-capacity").value = cfg.settings?.battery_capacity_kwh ?? "";
   renderWindows(cfg.windows || []);
+  paused = !!cfg.paused;
+  renderPaused();
 }
 
 async function loadProfiles() {
@@ -296,11 +370,16 @@ async function saveSettings() {
 }
 
 async function saveWindows() {
+  const nodes = [...document.querySelectorAll("#windows-list [data-window]")];
+  const windows = collectWindows();
   await fetchJSON("api/windows", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ windows: collectWindows() }),
+    body: JSON.stringify({ windows }),
   });
+  // Brand-new schedules only get an id in collectWindows(); keep it on the
+  // row so its On/Off switch can save on its own from now on.
+  nodes.forEach((node, i) => (node.dataset.id = windows[i].id));
   flashSaved("windows-save-msg");
 }
 
@@ -366,7 +445,12 @@ async function refreshStatus() {
     const status = await fetchJSON("api/status");
     const pill = document.getElementById("status-pill");
     const body = document.getElementById("status-body");
-    if (status.last_run) {
+    // The local pause flag, not status.paused - the status only catches up
+    // on the scheduler's next poll, up to poll_interval_seconds later.
+    if (paused) {
+      pill.textContent = "paused";
+      pill.style.color = "var(--warn)";
+    } else if (status.last_run) {
       const names = status.active_window_names || [];
       pill.textContent = names.length ? names.join(", ") : "idle";
       pill.style.color = names.length ? "var(--good)" : "var(--muted)";
@@ -400,6 +484,7 @@ function initTabs() {
 document.getElementById("save-entities").addEventListener("click", saveEntities);
 document.getElementById("save-settings").addEventListener("click", saveSettings);
 document.getElementById("save-windows").addEventListener("click", saveWindows);
+document.getElementById("pause-toggle").addEventListener("click", togglePaused);
 document.getElementById("download-backup").addEventListener("click", downloadBackup);
 document.getElementById("restore-backup").addEventListener("click", () => {
   document.getElementById("restore-file").click();
@@ -418,7 +503,7 @@ document.getElementById("add-window").addEventListener("click", () => {
 
 document.getElementById("inverter-type").addEventListener("change", onInverterTypeChange);
 
-loadProfiles().then(loadConfig);
-refreshStatus();
+// Status after config, so the pill knows whether scheduling is paused.
+loadProfiles().then(loadConfig).then(refreshStatus);
 initTabs();
 setInterval(refreshStatus, 10000);
