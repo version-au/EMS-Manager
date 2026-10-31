@@ -117,6 +117,10 @@ class EnabledPayload(BaseModel):
     enabled: bool
 
 
+class OrderPayload(BaseModel):
+    ids: list[str]
+
+
 class PausedPayload(BaseModel):
     paused: bool
 
@@ -167,6 +171,50 @@ async def set_window_enabled(window_id: str, payload: EnabledPayload):
     storage.save_config(cfg)
     log.info("Schedule %r %s", window_id, "enabled" if payload.enabled else "disabled")
     return window
+
+
+@app.post("/api/windows/order")
+async def set_windows_order(payload: OrderPayload):
+    """Reorder the saved schedules without touching their contents. The ids
+    must be exactly the saved ones, so a stale page can't drop a schedule."""
+    cfg = storage.load_config()
+    by_id = {w.get("id"): w for w in cfg["windows"]}
+    if sorted(payload.ids) != sorted(by_id):
+        raise HTTPException(status_code=409, detail="Schedules changed since the page loaded - reload and try again")
+    cfg["windows"] = [by_id[i] for i in payload.ids]
+    storage.save_config(cfg)
+    return cfg["windows"]
+
+
+@app.put("/api/windows/{window_id}")
+async def put_window(window_id: str, window: Window):
+    """Save one schedule from its editor: replaces the saved schedule with
+    this id in place (keeping its position in the list), or adds it to the
+    end if it's new. Every other schedule is left as it is."""
+    if window.id != window_id:
+        raise HTTPException(status_code=400, detail="Schedule id in the body doesn't match the URL")
+    cfg = storage.load_config()
+    data = window.model_dump()
+    index = next((i for i, w in enumerate(cfg["windows"]) if w.get("id") == window_id), None)
+    if index is None:
+        cfg["windows"].append(data)
+    else:
+        cfg["windows"][index] = data
+    storage.save_config(cfg)
+    log.info("Schedule %r saved", window_id)
+    return data
+
+
+@app.delete("/api/windows/{window_id}")
+async def delete_window(window_id: str):
+    cfg = storage.load_config()
+    remaining = [w for w in cfg["windows"] if w.get("id") != window_id]
+    if len(remaining) == len(cfg["windows"]):
+        raise HTTPException(status_code=404, detail=f"No saved schedule with id {window_id!r}")
+    cfg["windows"] = remaining
+    storage.save_config(cfg)
+    log.info("Schedule %r deleted", window_id)
+    return {"deleted": window_id}
 
 
 @app.post("/api/paused")

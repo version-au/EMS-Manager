@@ -182,8 +182,9 @@ exporting/importing flat-out and then abruptly stopping.
 
 ## Reordering schedules
 
-Use the ▲/▼ buttons on each schedule card to move it up or down, then hit
-**Save schedules**. Order matters when two schedules overlap in time:
+Click **Reorder** above the schedule list, then use the ▲/▼ buttons to move
+a schedule up or down (each move saves straight away). Order matters when
+two schedules overlap in time:
 whichever one is *lower* in the list wins on any field they both set (EMS
 mode, charge/discharge power, limits). Non-overlapping schedules are
 unaffected by order.

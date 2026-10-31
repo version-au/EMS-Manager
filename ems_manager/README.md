@@ -182,18 +182,19 @@ exporting/importing flat-out and then abruptly stopping.
 
 ## Reordering schedules
 
-Use the ▲/▼ buttons on each schedule card to move it up or down, then hit
-**Save schedules**. Order matters when two schedules overlap in time:
+Click **Reorder** above the schedule list, then use the ▲/▼ buttons to move
+a schedule up or down (each move saves straight away). Order matters when
+two schedules overlap in time:
 whichever one is *lower* in the list wins on any field they both set (EMS
 mode, charge/discharge power, limits). Non-overlapping schedules are
 unaffected by order.
 
 ## Turning schedules on/off and pausing
 
-- Each schedule row has an **On/Off** switch. It saves the moment you
-  click it (only that schedule's on/off state - other unsaved edits still
-  need **Save schedules**). Off schedules are greyed out and never apply.
-  A brand-new schedule's switch is saved along with **Save schedules**.
+- Each schedule in the list has an **On/Off** switch. It saves the moment
+  you click it. Off schedules are greyed out, left off the timeline, and
+  never apply. The **Enabled** switch inside a schedule's editor does the
+  same thing but is saved with that editor's **Save**.
 - **Pause scheduling** in the header stops the add-on writing anything to
   the inverter until you click **Resume scheduling**. Each schedule keeps
   its own On/Off setting, the pause survives add-on restarts, and the
@@ -277,6 +278,31 @@ fixed at the source, and `storage.py` also auto-repairs any window still
 carrying that bad id (regenerating a proper one from its name) the next
 time the config loads - no manual fix needed if you hit this on an
 earlier version.
+
+## Changed in v0.11.0: timeline, schedule editor and phone layout
+
+- The Schedules tab opens with a **24-hour timeline** for the selected day
+  (today by default), coloured by EMS mode, with a marker for the current
+  time. Striped blocks are where schedules overlap; the colour shown is
+  the mode that wins there (the lower schedule in the list). Tap a block
+  to open the schedule behind it. The marker uses your device's clock.
+- The list shows one card per schedule: name, time, days and mode, plus
+  its On/Off switch. Tap a card to open it in a **full-screen editor**
+  with its own **Save**. Each schedule now saves on its own, so the old
+  **Save schedules** button is gone. Leaving with unsaved changes asks
+  first, and the browser / Home Assistant app back gesture returns to the
+  list.
+- Reordering moved behind a **Reorder** button and saves straight away.
+- Notification fields only show once "Notify when this schedule becomes
+  active" is switched on.
+- Phone and HA app fixes: inputs no longer make iOS zoom in, number
+  fields bring up a number pad, touch targets are finger-sized, the
+  Setup entity grid drops to one column, the long Schedules explainer
+  is folded into "How schedules work", and the page clears the notch
+  and home bar.
+- New API endpoints used by the editor: `PUT /api/windows/{id}` (save one
+  schedule), `DELETE /api/windows/{id}` and `POST /api/windows/order`.
+  `POST /api/windows` (replace all) is unchanged.
 
 ## Added in v0.10.0: schedule on/off switches and pause
 

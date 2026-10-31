@@ -5,25 +5,41 @@
   --text: #e7e9ee;
   --muted: #9aa3b2;
   --accent: #4fb0ff;
+  --accent-soft: #1d3147;
   --good: #35c37c;
   --bad: #ff6b6b;
   --warn: #f5b942;
+  /* timeline / list stripe colours, one per EMS mode group */
+  --mode-chg: #35c37c;
+  --mode-dis: #f5b942;
+  --mode-other: #5b6b8c;
+  --mode-none: #3a404c;
+  --gutter: 20px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 * { box-sizing: border-box; }
 
+/* Author display rules (.row, .card…) would otherwise beat the browser's own [hidden]. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  padding: 20px;
+  /* clears the notch / home bar when the HA app shows the page edge to edge */
+  padding:
+    max(var(--gutter), env(safe-area-inset-top, 0px))
+    max(var(--gutter), env(safe-area-inset-right, 0px))
+    max(var(--gutter), env(safe-area-inset-bottom, 0px))
+    max(var(--gutter), env(safe-area-inset-left, 0px));
 }
 
 header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   margin-bottom: 20px;
 }
 
@@ -85,10 +101,6 @@ button:disabled {
   font-size: 0.85rem;
 }
 
-.paused-banner[hidden] {
-  display: none;
-}
-
 main {
   display: grid;
   gap: 16px;
@@ -129,12 +141,28 @@ main {
   gap: 16px;
 }
 
+/* Grid columns default to their content's min width, which lets wide
+   inputs push the page sideways on a phone. */
+.tab-panel.active, .editor, .editor-form, .ed-sec {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px 18px;
+  min-width: 0;
 }
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.card-head h2 { margin: 0; }
 
 .hint { color: var(--muted); font-size: 0.85rem; margin: 4px 0 12px; }
 
@@ -159,6 +187,7 @@ input[type="text"], input[type="number"], input[type="time"], select {
   border-radius: 6px;
   padding: 6px 8px;
   font-size: 0.9rem;
+  color-scheme: dark;
 }
 
 button {
@@ -173,13 +202,23 @@ button {
   margin-right: 8px;
 }
 
-button.remove-window {
-  background: transparent;
-  color: var(--bad);
-  border: 1px solid var(--bad);
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button.ghost-btn {
   margin: 0;
-  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 5px 12px;
   font-size: 0.8rem;
+}
+
+button.ghost-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 button#add-window {
@@ -191,34 +230,239 @@ button#add-window {
 .save-msg { font-size: 0.8rem; color: var(--good); margin-left: 4px; }
 .save-msg.error { color: var(--bad); }
 
-.window {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 12px;
+/* ---------- "How schedules work" ---------- */
+
+.howto {
+  margin: 8px 0 14px;
 }
 
-.window-summary {
+.howto summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 0.85rem;
+  width: fit-content;
+}
+
+.howto .hint {
+  margin: 8px 0 0;
+}
+
+/* ---------- 24-hour timeline ---------- */
+
+.timeline {
+  display: grid;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.timeline-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.timeline-now {
+  color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.day-picker {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.day-picker button {
+  margin: 0;
+  padding: 5px 0;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.day-picker button.today {
+  border-color: var(--border);
+}
+
+.day-picker button.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.timeline-track {
+  position: relative;
+  height: 34px;
+  border-radius: 6px;
+  background: var(--card);
+}
+
+.timeline-bar {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tl-seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 0 6px;
+  border-radius: 0;
+  border-right: 1px solid var(--bg);
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #051019;
+}
+
+.tl-seg:hover { filter: brightness(1.15); }
+
+.tl-seg span {
+  /* names only fit on wider screens; on phones the colour does the work */
+  display: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mode-chg { background: var(--mode-chg); }
+.mode-dis { background: var(--mode-dis); }
+.mode-other { background: var(--mode-other); color: var(--text); }
+.mode-none { background: var(--mode-none); color: var(--text); }
+
+.overlap {
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0 3px, transparent 3px 7px);
+}
+
+.timeline-marker {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--bg);
+  pointer-events: none;
+}
+
+.timeline-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.timeline-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  margin-top: -2px;
+}
+
+.timeline-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.timeline-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
+/* ---------- schedule list ---------- */
+
+.schedule-list {
+  display: grid;
+  gap: 8px;
+}
+
+.sched-row {
   display: flex;
   align-items: center;
   gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding-right: 12px;
+  overflow: hidden;
+  min-width: 0;
 }
 
-.window-summary .w-name {
+.sched-row.is-active {
+  border-color: rgba(53, 195, 124, 0.55);
+}
+
+.mode-stripe {
+  align-self: stretch;
+  width: 4px;
+  flex-shrink: 0;
+  background: var(--mode-none);
+}
+
+.sched-row.mode-chg .mode-stripe { background: var(--mode-chg); }
+.sched-row.mode-dis .mode-stripe { background: var(--mode-dis); }
+.sched-row.mode-other .mode-stripe { background: var(--mode-other); }
+/* the row itself shouldn't pick up the segment fills above */
+.sched-row.mode-chg, .sched-row.mode-dis, .sched-row.mode-other, .sched-row.mode-none { background: transparent; color: var(--text); }
+
+.sched-open {
   flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-weight: 400;
+  display: grid;
+  gap: 6px;
+}
+
+.sched-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sched-name {
   font-weight: 600;
-  min-width: 80px;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.window-body {
-  display: none;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
-.window.expanded .window-body {
-  display: block;
+.sched-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-left: 16px;
 }
 
 .active-dot {
@@ -229,26 +473,73 @@ button#add-window {
   flex-shrink: 0;
 }
 
-.window.is-active .active-dot {
+.sched-row.is-active .active-dot {
   background: var(--good);
+  box-shadow: 0 0 0 3px rgba(53, 195, 124, 0.18);
 }
 
-.summary-enabled {
-  margin: 0;
+.sched-row.is-disabled .sched-open,
+.sched-row.is-disabled .mode-stripe {
+  opacity: 0.45;
+}
+
+.badge {
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: #0f1115;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.sched-row.mode-chg .sched-mode { color: var(--mode-chg); border-color: rgba(53, 195, 124, 0.4); }
+.sched-row.mode-dis .sched-mode { color: var(--mode-dis); border-color: rgba(245, 185, 66, 0.4); }
+
+.chev {
+  color: var(--muted);
+  font-size: 1.2rem;
   flex-shrink: 0;
 }
 
-/* On/off switch: a visually hidden checkbox driving a sliding track, so
-   collectWindows() and the API still just read .checked. */
+.reorder-btns {
+  display: none;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.schedule-list.reordering .reorder-btns { display: flex; }
+.schedule-list.reordering .chev { display: none; }
+
+.reorder-btns button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  margin: 0;
+  padding: 4px 9px;
+  font-size: 0.7rem;
+  border-radius: 6px;
+}
+
+.reorder-btns button:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.reorder-btns button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* On/off switch: a visually hidden checkbox driving a sliding track, so the
+   code and the API still just read .checked. */
 .switch {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
   cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--good);
+  flex-shrink: 0;
   user-select: none;
 }
 
@@ -261,8 +552,8 @@ button#add-window {
 
 .switch-track {
   position: relative;
-  width: 32px;
-  height: 18px;
+  width: 34px;
+  height: 20px;
   border-radius: 999px;
   background: var(--good);
   transition: background 0.15s;
@@ -273,8 +564,8 @@ button#add-window {
   position: absolute;
   top: 2px;
   left: 16px;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #fff;
   transition: left 0.15s;
@@ -293,136 +584,163 @@ button#add-window {
   outline-offset: 2px;
 }
 
-.switch-text {
-  width: 2em;
+/* ---------- schedule editor ---------- */
+
+.editor {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
 }
 
-.window.is-disabled .switch {
-  color: var(--muted);
-}
-
-.window.is-disabled .w-name,
-.window.is-disabled .badge,
-.window.is-disabled .active-dot,
-.window.is-disabled .window-body {
-  opacity: 0.45;
-}
-
-.badge {
-  font-size: 0.72rem;
-  color: var(--muted);
-  background: #0f1115;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 3px 9px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.expand-toggle {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  margin: 0;
-  padding: 4px 8px;
-  font-size: 0.7rem;
-  flex-shrink: 0;
-}
-
-.expand-toggle:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.window.expanded .expand-toggle {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.reorder-btns {
+.editor-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.reorder-btns button {
-  background: transparent;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
   border: 1px solid var(--border);
-  color: var(--muted);
-  margin: 0;
-  padding: 1px 6px;
-  font-size: 0.65rem;
-  line-height: 1.2;
-  border-radius: 4px;
+  border-radius: 10px;
+  padding: 8px 10px;
 }
 
-.reorder-btns button:hover {
+.editor-bar button { margin: 0; }
+
+.back-btn {
+  background: transparent;
   color: var(--accent);
-  border-color: var(--accent);
+  font-weight: 500;
+  padding: 6px 4px;
 }
 
-.notify-row {
-  margin-top: 4px;
-}
-
-.notify-fields label.full-width {
+.editor-title {
   flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+.save-btn { padding: 7px 18px; }
+
+.editor > .save-msg:empty { display: none; }
+
+.editor-form {
+  display: grid;
+  gap: 18px;
+}
+
+.ed-sec {
+  display: grid;
+  gap: 8px;
+}
+
+.ed-sec h3 {
+  margin: 0 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ed-sec .hint { margin: 0 4px; }
+
+.grp {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Every row draws a top divider; the -1px tucks the first visible one under
+   the group's own border, whichever rows the mode has hidden. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  margin-top: -1px;
+  font-size: 0.9rem;
+  min-height: 48px;
+}
+
+.row > input,
+.row > select {
+  width: min(260px, 55%);
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.row-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.row-stack > input { width: 100%; }
 
 /* Hidden by default; JS shows the relevant set once an EMS mode is picked.
-   Covers the min/max export fields, the flat export limit field, charge
-   target SoC, and the ramp checkboxes - anything that only makes sense
-   for one direction. */
+   Comes after .row so it wins over its display:flex. */
 .mode-discharge-only,
 .mode-charge-only,
 .mode-other-only {
   display: none;
 }
 
-.ramp-fields label.mode-discharge-only,
-.ramp-fields label.mode-charge-only {
-  color: var(--accent);
-}
-
-p.hint.mode-discharge-only,
-p.hint.mode-charge-only {
-  margin-top: -4px;
-}
-
-.enabled-label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.window-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-bottom: 8px;
-}
-
-.window-row label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
 .days {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
 }
 
 .days label {
-  flex-direction: row;
-  align-items: center;
-  gap: 3px;
-  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.days input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.days span {
+  display: block;
+  text-align: center;
+  padding: 7px 0;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.days input:checked + span {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+}
+
+.days input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button.remove-window {
+  margin: 0;
+  width: 100%;
+  padding: 11px;
+  background: transparent;
+  color: var(--bad);
+  border: 1px solid rgba(255, 107, 107, 0.5);
+  border-radius: 10px;
 }
 
 #status-body {
@@ -430,6 +748,50 @@ p.hint.mode-charge-only {
   font-size: 0.82rem;
   white-space: pre-wrap;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 datalist { display: none; }
+
+/* ---------- wider screens ---------- */
+
+@media (min-width: 700px) {
+  .tl-seg span { display: block; line-height: 34px; }
+  .timeline-track { height: 34px; }
+}
+
+/* ---------- phones and the HA app ---------- */
+
+@media (max-width: 600px) {
+  :root { --gutter: 12px; }
+
+  header { flex-wrap: wrap; margin-bottom: 14px; }
+  .header-right { max-width: none; width: 100%; justify-content: space-between; }
+  .header-right .pill { text-align: left; }
+
+  .tab-btn { flex: 1; }
+
+  .card { padding: 14px; }
+  .entity-grid { grid-template-columns: 1fr; }
+
+  /* iOS (and the HA app on it) zooms the page into any input under 16px */
+  input[type="text"], input[type="number"], input[type="time"], select { font-size: 16px; }
+
+  .sched-meta { padding-left: 0; }
+  .row > input, .row > select { width: 55%; }
+}
+
+/* touch screens get finger-sized targets, whatever their width */
+@media (pointer: coarse) {
+  button, .tab-btn { min-height: 44px; }
+  /* timeline blocks are sized by the track; the whole block is the target */
+  .tl-seg { min-height: 0; }
+  .reorder-btns button { min-width: 44px; }
+  .sched-row .switch { min-height: 44px; padding: 0 4px; }
+  .day-picker button { min-height: 36px; }
+  .howto summary { padding: 8px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch-track, .switch-track::after { transition: none; }
+}
