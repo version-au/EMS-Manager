@@ -685,6 +685,17 @@ button#add-window {
 
 .row-stack > input { width: 100%; }
 
+/* Start/End when the "24-hour time" switch has turned them into HH:MM text. */
+.row > input.time-text {
+  width: 6.5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.row > input.invalid {
+  border-color: var(--bad);
+}
+
 /* Hidden by default; JS shows the relevant set once an EMS mode is picked.
    Comes after .row so it wins over its display:flex. */
 .mode-discharge-only,

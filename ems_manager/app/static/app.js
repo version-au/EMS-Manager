@@ -92,6 +92,72 @@ function updateNotifyVisibility(node) {
   node.querySelectorAll(".notify-fields").forEach((el) => (el.hidden = !show));
 }
 
+// Start/End are native time pickers by default, which follow the device's own
+// 12/24-hour setting and can't be told otherwise. The "24-hour time" switch
+// swaps them for plain HH:MM text fields; the choice is remembered per device.
+const TIME_24H_KEY = "ems-manager.time24h";
+
+function prefers24h() {
+  try {
+    return localStorage.getItem(TIME_24H_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function remember24h(on) {
+  try {
+    localStorage.setItem(TIME_24H_KEY, on ? "1" : "0");
+  } catch {
+    // Storage blocked (private mode etc.): the switch still works for this visit.
+  }
+}
+
+// Tidies what someone typed into a 24-hour field: "7" -> "07:00", "730" and
+// "7.30" -> "07:30", "1730" -> "17:30". Returns null when it isn't a time.
+function normalizeTime(raw) {
+  const m = String(raw || "").trim().match(/^(\d{1,2})[:.hH]?(\d{2})?$/);
+  if (!m) return null;
+  const hours = Number(m[1]);
+  const minutes = Number(m[2] ?? 0);
+  if (hours > 23 || minutes > 59) return null;
+  return formatMinutes(hours * 60 + minutes);
+}
+
+// The HH:MM value of a Start/End field whichever kind it currently is;
+// "" when a 24-hour text field holds something that isn't a time yet.
+function timeInputValue(input) {
+  return input.type === "time" ? input.value : normalizeTime(input.value) || "";
+}
+
+function setTimeInputMode(node, use24h) {
+  node.querySelectorAll(".w-start, .w-end").forEach((input) => {
+    const value = timeInputValue(input);
+    if (use24h) {
+      input.type = "text";
+      input.inputMode = "numeric";
+      input.placeholder = "HH:MM";
+      input.maxLength = 5;
+      input.autocomplete = "off";
+    } else {
+      input.type = "time";
+      input.removeAttribute("inputmode");
+      input.removeAttribute("placeholder");
+      input.removeAttribute("maxlength");
+    }
+    input.classList.toggle("time-text", use24h);
+    input.value = value;
+  });
+}
+
+// Returns the first 24-hour Start/End field holding something that isn't a
+// time, or null when everything parses (native pickers always do).
+function invalidTimeInput(node) {
+  return [...node.querySelectorAll(".w-start, .w-end")].find(
+    (input) => input.type === "text" && input.value.trim() !== "" && !normalizeTime(input.value)
+  ) || null;
+}
+
 let entityDatalistBuilt = false;
 
 async function fetchJSON(url, options) {
@@ -367,6 +433,23 @@ function fillEditor(node, win) {
     cb.checked = days.includes(cb.value);
   });
 
+  const use24h = node.querySelector(".w-24h");
+  use24h.checked = prefers24h();
+  setTimeInputMode(node, use24h.checked);
+  use24h.addEventListener("change", () => {
+    remember24h(use24h.checked);
+    setTimeInputMode(node, use24h.checked);
+  });
+  node.querySelectorAll(".w-start, .w-end").forEach((input) => {
+    input.addEventListener("blur", () => {
+      // Tidy "730" into "07:30" once they leave the field; anything that
+      // isn't a time is left as typed so they can see and fix it.
+      if (input.type === "text") input.value = normalizeTime(input.value) || input.value;
+      input.classList.toggle("invalid", input.type === "text" && input.value.trim() !== "" && !normalizeTime(input.value));
+    });
+    input.addEventListener("input", () => input.classList.remove("invalid"));
+  });
+
   updateModeVisibility(node);
   updateNotifyVisibility(node);
   node.querySelector(".w-ems-mode").addEventListener("change", () => updateModeVisibility(node));
@@ -382,8 +465,8 @@ function collectWindow(node) {
     name: node.querySelector(".w-name").value.trim() || "Untitled",
     enabled: node.querySelector(".w-enabled").checked,
     days: [...node.querySelectorAll("[data-days] input:checked")].map((cb) => cb.value),
-    start: node.querySelector(".w-start").value || "00:00",
-    end: node.querySelector(".w-end").value || "00:00",
+    start: timeInputValue(node.querySelector(".w-start")) || "00:00",
+    end: timeInputValue(node.querySelector(".w-end")) || "00:00",
     ems_mode: node.querySelector(".w-ems-mode").value.trim() || null,
     charge_power_kw: num(".w-charge"),
     discharge_power_kw: num(".w-discharge"),
@@ -489,6 +572,13 @@ function closeEditor() {
 
 async function saveEditing() {
   const btn = document.getElementById("editor-save");
+  const badTime = invalidTimeInput(editing.node);
+  if (badTime) {
+    badTime.classList.add("invalid");
+    badTime.focus();
+    flashMsg("editor-save-msg", `"${badTime.value.trim()}" isn't a time. Use HH:MM, e.g. 17:30.`, true);
+    return;
+  }
   const data = collectWindow(editing.node);
   const id = editing.id || windowIdFromName(data.name, new Set(windows.map((w) => w.id)));
   btn.disabled = true;

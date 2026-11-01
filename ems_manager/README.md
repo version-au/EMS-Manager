@@ -279,6 +279,15 @@ carrying that bad id (regenerating a proper one from its name) the next
 time the config loads - no manual fix needed if you hit this on an
 earlier version.
 
+## Added in v0.11.1: 24-hour time entry in the schedule editor
+
+The browser's own time picker follows your device's 12/24-hour setting and
+can't be told otherwise, so Start and End now have a **24-hour time** switch
+under them. Switching it on turns both fields into plain `HH:MM` boxes:
+type `1730` or `17.30` and it tidies to `17:30` when you leave the field,
+and Save refuses anything that isn't a real time. The switch is remembered
+on that device for every schedule you open.
+
 ## Changed in v0.11.0: timeline, schedule editor and phone layout
 
 - The Schedules tab opens with a **24-hour timeline** for the selected day
