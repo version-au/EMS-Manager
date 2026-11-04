@@ -87,10 +87,11 @@ Entity IDs include your device name, so yours may differ (e.g.
 - GoodWe has a single EMS power limit instead of separate charge/discharge
   limits. In a charging EMS mode the schedule's **Charge power** is written
   to it; in a discharging mode, its **Discharge power**; in any other mode
-  it's left alone.
-  So schedules only show **Charge power** in a charging mode, and
-  **Discharge power** / **Stop discharge at SoC** in a discharging mode
-  (values are kept if hidden).
+  the schedule's own **EMS power limit (kW)** is written instead, if set.
+  So schedules only show **Charge power** in a charging mode,
+  **Discharge power** / **Stop discharge at SoC** in a discharging mode, and
+  **EMS power limit** in any other mode, such as Auto (values are kept if
+  hidden).
 - There's no grid import limit, so that field is hidden on schedules, and
   the charge ramp paces **charge power** (the EMS power limit) directly
   instead of an import limit.
@@ -279,6 +280,14 @@ fixed at the source, and `storage.py` also auto-repairs any window still
 carrying that bad id (regenerating a proper one from its name) the next
 time the config loads - no manual fix needed if you hit this on an
 earlier version.
+
+## Added in v0.13.0: EMS power limit for GoodWe Auto (and other) modes
+
+GoodWe schedules in a mode that isn't charging or discharging (Auto,
+Battery standby, Conserve, or no EMS mode managed) now have an **EMS power
+limit (kW)** field. It's written to the EMS power limit entity while the
+schedule is active. Leave it blank to leave the entity alone, as before.
+Charging and discharging modes still use Charge power / Discharge power.
 
 ## Added in v0.12.0: GoodWe Sell power and Buy power modes
 

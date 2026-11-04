@@ -95,6 +95,9 @@ class Window(BaseModel):
     ems_mode: str | None = None
     charge_power_kw: float | None = None
     discharge_power_kw: float | None = None
+    # GoodWe: written to the EMS power limit in modes that aren't charging or
+    # discharging (Auto, standby, ...), where charge/discharge power don't apply.
+    ems_power_limit_kw: float | None = None
     soc_stop_percent: float | None = None
     import_limit_kw: float | None = None
     min_export_limit_kw: float | None = None

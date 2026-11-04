@@ -159,6 +159,7 @@ class Scheduler:
                 "ems_mode",
                 "charge_power_kw",
                 "discharge_power_kw",
+                "ems_power_limit_kw",
                 "soc_stop_percent",
                 "import_limit_kw",
                 "min_export_limit_kw",
@@ -271,7 +272,8 @@ class Scheduler:
         await self._apply_ems_mode(entities, merged, status)
         if profile["power_control"] == "shared":
             # One power setpoint, meaning charge or discharge power depending
-            # on the EMS mode - left alone in modes that don't use it.
+            # on the EMS mode. In any other mode (Auto, standby, ...) the
+            # schedule's own EMS power limit is written, if it sets one.
             if mode in charge_modes:
                 await self._apply_number(
                     entities.get("ems_power_limit_number"),
@@ -285,6 +287,13 @@ class Scheduler:
                     merged.get("discharge_power_kw"),
                     status,
                     "EMS power limit (discharge)",
+                )
+            else:
+                await self._apply_number(
+                    entities.get("ems_power_limit_number"),
+                    merged.get("ems_power_limit_kw"),
+                    status,
+                    "EMS power limit",
                 )
         else:
             await self._apply_number(

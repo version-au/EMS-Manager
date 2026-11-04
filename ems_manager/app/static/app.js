@@ -83,6 +83,9 @@ function updateModeVisibility(node) {
   const byMode = profile.power_control === "shared";
   node.querySelectorAll(".charge-power-field").forEach((el) => showFor(el, !byMode || isCharge));
   node.querySelectorAll(".discharge-power-field").forEach((el) => showFor(el, !byMode || isDischarge));
+  // In every other mode (Auto, standby, ...) the shared setpoint can be set
+  // directly instead.
+  node.querySelectorAll(".ems-power-field").forEach((el) => showFor(el, byMode && !isCharge && !isDischarge));
   node.querySelector(".charge-ramp-text").textContent =
     profile.charge_ramp_field === "import_limit_kw" ? "Ramp import limit" : "Ramp charge power";
 }
@@ -415,6 +418,7 @@ function fillEditor(node, win) {
   fillModeOptions(node.querySelector(".w-ems-mode"), win.ems_mode);
   node.querySelector(".w-charge").value = win.charge_power_kw ?? "";
   node.querySelector(".w-discharge").value = win.discharge_power_kw ?? "";
+  node.querySelector(".w-ems-power").value = win.ems_power_limit_kw ?? "";
   node.querySelector(".w-soc-stop").value = win.soc_stop_percent ?? "";
   node.querySelector(".w-import").value = win.import_limit_kw ?? "";
   node.querySelector(".w-export-min").value = win.min_export_limit_kw ?? "";
@@ -470,6 +474,7 @@ function collectWindow(node) {
     ems_mode: node.querySelector(".w-ems-mode").value.trim() || null,
     charge_power_kw: num(".w-charge"),
     discharge_power_kw: num(".w-discharge"),
+    ems_power_limit_kw: num(".w-ems-power"),
     soc_stop_percent: num(".w-soc-stop"),
     import_limit_kw: num(".w-import"),
     min_export_limit_kw: num(".w-export-min"),
