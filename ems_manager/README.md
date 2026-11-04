@@ -119,9 +119,10 @@ all.
   "Command Charging" options count as charging modes and the "Command
   Discharging" options as discharging modes (for ramping and power).
 - **GoodWe:** Auto (self-use), Battery standby, Conserve, Charge battery,
-  Import AC, Charge PV, Discharge battery, Export AC, and Discharge PV.
-  Charge battery / Import AC / Charge PV are charging modes; Discharge
-  battery / Export AC / Discharge PV are discharging modes.
+  Import AC, Charge PV, Discharge battery, Export AC, Discharge PV, Sell
+  power and Buy power. Charge battery / Import AC / Charge PV / Buy power
+  are charging modes; Discharge battery / Export AC / Discharge PV / Sell
+  power are discharging modes.
 
 The add-on does nothing outside schedule windows, so the inverter stays in
 whatever mode the last schedule set. To return to normal operation after
@@ -278,6 +279,23 @@ fixed at the source, and `storage.py` also auto-repairs any window still
 carrying that bad id (regenerating a proper one from its name) the next
 time the config loads - no manual fix needed if you hit this on an
 earlier version.
+
+## Added in v0.12.0: GoodWe Sell power and Buy power modes
+
+GoodWe schedules can now use the inverter's **Sell power** (`sell_power`)
+and **Buy power** (`buy_power`) EMS modes. Sell power counts as a
+discharging mode, so the schedule's **Discharge power** is written to the
+EMS power limit. Buy power counts as a charging mode, so **Charge power**
+is written.
+
+Logs from a GoodWe install showed **Export AC** and **Discharge battery**
+holding the inverter's own output fixed: whatever the house used came out
+of grid export (a 3 kW setting exported as little as 0.3 kW while the
+house drew 2.9 kW). Sell power and Buy power are expected to set the
+power at the grid meter instead, so export or import stays put as house
+load changes. This hasn't been confirmed on real hardware yet. Watch
+`sensor.goodwe_active_power` the first time you use them, and keep the
+grid export limit at or above the power you want to sell.
 
 ## Added in v0.11.1: 24-hour time entry in the schedule editor
 

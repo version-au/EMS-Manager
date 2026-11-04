@@ -58,9 +58,13 @@ PROFILES = {
             ["discharge_battery", "Discharge battery (battery first)"],
             ["export_ac", "Export AC (PV first, battery tops up)"],
             ["discharge_pv", "Discharge PV"],
+            # Grid-side (meter) power control, as opposed to export_ac /
+            # import_ac which hold the inverter's own AC output.
+            ["sell_power", "Sell power (export to grid at set power)"],
+            ["buy_power", "Buy power (import from grid at set power)"],
         ],
-        "discharge_modes": ["discharge_battery", "export_ac", "discharge_pv"],
-        "charge_modes": ["charge_battery", "import_ac", "charge_pv"],
+        "discharge_modes": ["discharge_battery", "export_ac", "discharge_pv", "sell_power"],
+        "charge_modes": ["charge_battery", "import_ac", "charge_pv", "buy_power"],
         # "shared": a single ems_power_limit_number sets the power for
         # whichever direction the current EMS mode runs in - charge power in
         # a charge mode, discharge power in a discharge mode.
