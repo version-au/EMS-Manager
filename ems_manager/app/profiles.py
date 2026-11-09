@@ -19,6 +19,7 @@ PROFILES = {
             ["import_limit_number", "Grid import limit (number entity)", "number."],
             ["export_limit_number", "Grid export limit (number entity)", "number."],
             ["consumption_sensor", "Home consumption power (sensor entity, optional)", "sensor."],
+            ["pv_power_sensor", "Solar (PV) power (sensor entity, optional)", "sensor."],
         ],
         "modes": [
             ["PCS Remote Control", "PCS Remote Control"],
@@ -32,6 +33,9 @@ PROFILES = {
         ],
         "discharge_modes": ["Command Discharging (PV First)", "Command Discharging (ESS First)"],
         "charge_modes": ["Command Charging (Grid First)", "Command Charging (PV First)"],
+        # Modes that offer "Ramp export based on solar input": the export
+        # limit is raised to cover solar surplus above it.
+        "solar_export_modes": ["Command Discharging (PV First)", "Command Discharging (ESS First)"],
         # "separate": charge_limit_number / discharge_limit_number are
         # written independently, whatever the mode.
         "power_control": "separate",
@@ -47,6 +51,7 @@ PROFILES = {
             ["soc_sensor", "Battery SoC (sensor entity)", "sensor.goodwe_battery_state_of_charge"],
             ["export_limit_number", "Grid export limit (number entity)", "number.goodwe_grid_export_limit"],
             ["consumption_sensor", "Home consumption power (sensor entity, optional)", "sensor.goodwe_house_consumption"],
+            ["pv_power_sensor", "Solar (PV) power (sensor entity, optional)", "sensor.goodwe_pv_power"],
         ],
         "modes": [
             ["auto", "Auto (self-use)"],
@@ -65,6 +70,9 @@ PROFILES = {
         ],
         "discharge_modes": ["discharge_battery", "export_ac", "discharge_pv", "sell_power"],
         "charge_modes": ["charge_battery", "import_ac", "charge_pv", "buy_power"],
+        # In Sell power the grid export limit is what the inverter exports
+        # at, so the solar ramp only needs to raise that.
+        "solar_export_modes": ["sell_power"],
         # "shared": a single ems_power_limit_number sets the power for
         # whichever direction the current EMS mode runs in - charge power in
         # a charge mode, discharge power in a discharge mode.

@@ -64,6 +64,7 @@ The fields shown depend on the inverter selected in **Setup → System**.
 | Grid import limit (number) | If your inverter/firmware exposes this via Modbus |
 | Grid export limit (number) | If your inverter/firmware exposes this via Modbus |
 | Home consumption power (sensor, optional) | Used by the discharge ramp to net off house load - see below |
+| Solar (PV) power (sensor, optional) | Used by "Ramp export based on solar input" - see below |
 
 If your integration doesn't expose import/export limit registers locally,
 leave those fields blank — the rest of the app still works.
@@ -77,6 +78,7 @@ leave those fields blank — the rest of the app still works.
 | Battery SoC (sensor) | Used for the discharge cutoff and ramping | `sensor.goodwe_battery_state_of_charge` |
 | Grid export limit (number) | Must be in W (not %) | `number.goodwe_grid_export_limit` |
 | Home consumption power (sensor, optional) | Used by the discharge ramp to net off house load | `sensor.goodwe_house_consumption` |
+| Solar (PV) power (sensor, optional) | Used by "Ramp export based on solar input" | `sensor.goodwe_pv_power` |
 
 Entity IDs include your device name, so yours may differ (e.g.
 `select.garage_goodwe_ems_mode`). Notes for GoodWe:
@@ -280,6 +282,31 @@ fixed at the source, and `storage.py` also auto-repairs any window still
 carrying that bad id (regenerating a proper one from its name) the next
 time the config loads - no manual fix needed if you hit this on an
 earlier version.
+
+## Added in v0.14.0: Ramp export based on solar input
+
+Map a **Solar (PV) power** sensor in Setup, then turn on **Ramp export
+based on solar input** on a schedule. The toggle is shown for Sigenergy's
+**Command Discharging** modes (PV First and ESS First) and GoodWe's **Sell
+power** mode.
+
+Every poll, the solar surplus is worked out as `solar power − home
+consumption` (consumption counts as 0 if that sensor isn't mapped). If
+that's more than the schedule's export limit (its Max export limit, or the
+discharge ramp's result when that's on), the export limit is raised to the
+surplus so the solar is exported rather than curtailed. As solar drops the
+limit falls with it, back to the schedule's own setting - nothing is
+stored, it's recalculated from the schedule each poll.
+
+- Only the export limit is changed. Discharge power (GoodWe's EMS power
+  limit) is left as the schedule sets it - on GoodWe Sell power the grid
+  export limit is what the inverter exports at, so set Discharge power to
+  the inverter's maximum.
+- The schedule needs a **Max export limit** set - that's the baseline the
+  ramp raises from and returns to.
+- Values written to any number entity are now also kept within that
+  entity's own maximum, so a large surplus can't cause a rejected write.
+- The Status tab shows what the solar ramp decided each poll.
 
 ## Added in v0.13.0: EMS power limit for GoodWe Auto (and other) modes
 

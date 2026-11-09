@@ -25,6 +25,7 @@ DEFAULT_CONFIG = {
         "export_limit_number": "",
         "consumption_sensor": "",
         "ems_power_limit_number": "",
+        "pv_power_sensor": "",
     },
     "settings": {
         "inverter_type": "sigenergy",

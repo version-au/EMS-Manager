@@ -78,6 +78,7 @@ class EntitiesPayload(BaseModel):
     export_limit_number: str = ""
     consumption_sensor: str = ""
     ems_power_limit_number: str = ""
+    pv_power_sensor: str = ""
 
 
 class SettingsPayload(BaseModel):
@@ -105,6 +106,9 @@ class Window(BaseModel):
     flat_export_limit_kw: float | None = None
     discharge_ramp_enabled: bool = False
     charge_ramp_enabled: bool = False
+    # Raise the export limit to cover solar surplus (PV - consumption) above
+    # it; falls back to the configured limit as solar drops.
+    solar_export_ramp_enabled: bool = False
     charge_target_percent: float | None = None
     notify_enabled: bool = False
     notify_service: str | None = None

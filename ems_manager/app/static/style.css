@@ -700,7 +700,8 @@ button#add-window {
    Comes after .row so it wins over its display:flex. */
 .mode-discharge-only,
 .mode-charge-only,
-.mode-other-only {
+.mode-other-only,
+.mode-solar-only {
   display: none;
 }
 

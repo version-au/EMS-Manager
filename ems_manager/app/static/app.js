@@ -77,6 +77,8 @@ function updateModeVisibility(node) {
   // "Other" covers every mode except discharging - charging, self
   // consumption, standby, PCS remote, V2G, and no mode selected at all.
   node.querySelectorAll(".mode-other-only").forEach((el) => showFor(el, !isDischarge));
+  const isSolar = (profile.solar_export_modes || []).includes(mode);
+  node.querySelectorAll(".mode-solar-only").forEach((el) => showFor(el, isSolar));
   node.querySelectorAll(".import-limit-field").forEach((el) => showFor(el, profile.has_import_limit));
   // With a shared power setpoint only the field for the current direction
   // does anything; separate limits apply in every mode, so always show.
@@ -426,6 +428,7 @@ function fillEditor(node, win) {
   node.querySelector(".w-export-flat").value = win.flat_export_limit_kw ?? "";
   node.querySelector(".w-discharge-ramp").checked = !!win.discharge_ramp_enabled;
   node.querySelector(".w-charge-ramp").checked = !!win.charge_ramp_enabled;
+  node.querySelector(".w-solar-ramp").checked = !!win.solar_export_ramp_enabled;
   node.querySelector(".w-charge-target-soc").value = win.charge_target_percent ?? "";
   node.querySelector(".w-notify-enabled").checked = !!win.notify_enabled;
   node.querySelector(".w-notify-service").value = win.notify_service || "";
@@ -482,6 +485,7 @@ function collectWindow(node) {
     flat_export_limit_kw: num(".w-export-flat"),
     discharge_ramp_enabled: node.querySelector(".w-discharge-ramp").checked,
     charge_ramp_enabled: node.querySelector(".w-charge-ramp").checked,
+    solar_export_ramp_enabled: node.querySelector(".w-solar-ramp").checked,
     charge_target_percent: num(".w-charge-target-soc"),
     notify_enabled: node.querySelector(".w-notify-enabled").checked,
     notify_service: node.querySelector(".w-notify-service").value.trim() || null,

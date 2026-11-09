@@ -194,18 +194,18 @@ class Scheduler:
             and mode_window.get("discharge_ramp_enabled")
         )
 
+        solar_ramp_active = bool(
+            mode_window
+            and merged.get("ems_mode") in set(profile.get("solar_export_modes", []))
+            and mode_window.get("solar_export_ramp_enabled")
+        )
+
         consumed_kw = None
-        if discharge_ramp_active and entities.get("consumption_sensor"):
-            consumption_state = await self.ha.get_state(entities["consumption_sensor"])
-            scale = self._scale_for(consumption_state)
-            try:
-                consumed_kw = (
-                    float(consumption_state["state"]) / scale
-                    if consumption_state and scale
-                    else None
-                )
-            except (TypeError, ValueError):
-                consumed_kw = None
+        if discharge_ramp_active or solar_ramp_active:
+            consumed_kw = await self._read_power_kw(entities.get("consumption_sensor"))
+        pv_kw = None
+        if solar_ramp_active:
+            pv_kw = await self._read_power_kw(entities.get("pv_power_sensor"))
 
         # SoC-based discharge cutoff: if configured and battery has reached
         # the floor, force discharge power to 0 regardless of the window.
@@ -251,6 +251,9 @@ class Scheduler:
             flat_export = merged.get("flat_export_limit_kw")
             if flat_export is not None:
                 merged["export_limit_kw"] = flat_export
+
+        if solar_ramp_active:
+            self._apply_solar_export_ramp(merged, pv_kw, consumed_kw, status, entities)
 
         if mode_window and mode in charge_modes:
             if (
@@ -388,6 +391,60 @@ class Scheduler:
             f"-> export limit {export_kw:.2f}kW (range {min_export}-{max_export}kW)"
         )
 
+    async def _read_power_kw(self, entity_id: Optional[str]) -> Optional[float]:
+        """A power sensor's reading in kW (converted from W if that's its
+        unit), or None if unmapped, unavailable or not a power unit."""
+        if not entity_id:
+            return None
+        state = await self.ha.get_state(entity_id)
+        scale = self._scale_for(state)
+        try:
+            return float(state["state"]) / scale if state and scale else None
+        except (TypeError, ValueError):
+            return None
+
+    def _apply_solar_export_ramp(
+        self,
+        merged: dict,
+        pv_kw: Optional[float],
+        consumed_kw: Optional[float],
+        status: dict,
+        entities: dict,
+    ) -> None:
+        """Raise the export limit while solar is producing more than the
+        house uses plus what the schedule already exports, so the surplus is
+        exported instead of curtailed. Recomputed every poll from the
+        schedule's own export limit (flat max or discharge-ramp result), so
+        it falls back to that on its own once solar drops. Only the export
+        limit is touched - discharge power / the EMS power limit are left
+        as configured."""
+        base = merged.get("export_limit_kw")
+        if base is None:
+            status["actions"].append(
+                "Solar export ramp: no Max export limit set on this schedule - nothing to raise"
+            )
+            return
+        if pv_kw is None:
+            reason = "not mapped" if not entities.get("pv_power_sensor") else "unavailable"
+            status["errors"].append(
+                f"Solar export ramp: solar power sensor {reason} - export limit left at {base}kW"
+            )
+            return
+        consumed = consumed_kw if consumed_kw is not None else 0.0
+        surplus = max(pv_kw - consumed, 0)
+        if surplus <= base:
+            status["actions"].append(
+                f"Solar export ramp: solar {pv_kw:.2f}kW - consumption {consumed:.2f}kW "
+                f"= {surplus:.2f}kW, within export limit {base}kW - not raised"
+            )
+            return
+        raised = round(surplus, 3)
+        merged["export_limit_kw"] = raised
+        status["actions"].append(
+            f"Solar export ramp: solar {pv_kw:.2f}kW - consumption {consumed:.2f}kW "
+            f"-> export limit raised {base}kW -> {raised}kW"
+        )
+
     def _apply_charge_ramp(
         self,
         window: dict,
@@ -474,6 +531,15 @@ class Scheduler:
         except (TypeError, ValueError):
             current_native = None
         desired_native = desired * scale_to_entity
+        # Keep within the entity's own maximum - a computed value (e.g. the
+        # solar export ramp following a big PV surplus) could exceed it, and
+        # HA rejects out-of-range writes outright.
+        try:
+            entity_max = float((current or {}).get("attributes", {}).get("max"))
+        except (TypeError, ValueError):
+            entity_max = None
+        if entity_max is not None and desired_native > entity_max:
+            desired_native = entity_max
         # Snap to the entity's step (e.g. GoodWe's EMS power limit only
         # takes multiples of 100W) so a ramp-computed value is accepted and
         # compares equal to what the entity then reports back.

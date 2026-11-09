@@ -201,11 +201,15 @@
           <label class="row mode-discharge-only">Ramp export limit
             <span class="switch"><input type="checkbox" class="w-discharge-ramp" /><span class="switch-track"></span></span>
           </label>
+          <label class="row mode-solar-only">Ramp export based on solar input
+            <span class="switch"><input type="checkbox" class="w-solar-ramp" /><span class="switch-track"></span></span>
+          </label>
           <label class="row mode-charge-only"><span class="charge-ramp-text">Ramp import limit</span>
             <span class="switch"><input type="checkbox" class="w-charge-ramp" /><span class="switch-track"></span></span>
           </label>
         </div>
         <p class="hint mode-discharge-only">When ramping, the export limit is calculated dynamically each poll and kept within your Min/Max export limit range above.</p>
+        <p class="hint mode-solar-only">Ramp export based on solar input: while solar power minus house consumption is above the export limit, the limit is raised to match, then drops back to your setting as solar falls. Needs the Solar (PV) power sensor mapped in Setup.</p>
       </div>
 
       <div class="ed-sec">
