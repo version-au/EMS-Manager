@@ -373,10 +373,45 @@ function timelineSegments(day) {
   return segments;
 }
 
+// The parts of the day no schedule covers - where the fallback runs, if on.
+function fallbackGaps(segments) {
+  const gaps = [];
+  let at = 0;
+  segments.forEach((seg) => {
+    if (seg.from > at) gaps.push([at, seg.from]);
+    at = Math.max(at, seg.to);
+  });
+  if (at < 1440) gaps.push([at, 1440]);
+  return gaps;
+}
+
+function renderFallbackSegment(bar, from, to) {
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = `tl-seg tl-fallback mode-${modeKind(fallback.ems_mode)}`;
+  el.style.left = `${(from / 1440) * 100}%`;
+  el.style.width = `${((to - from) / 1440) * 100}%`;
+  const mode = fallback.ems_mode ? modeLabel(fallback.ems_mode) : "no mode set";
+  el.title = `${formatMinutes(from)}–${formatMinutes(to)}  Fallback (${mode})`;
+  const label = document.createElement("span");
+  label.textContent = "Fallback";
+  el.appendChild(label);
+  el.addEventListener("click", () => {
+    showTab("setup");
+    document.getElementById("fallback-card").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  bar.appendChild(el);
+}
+
 function renderTimeline() {
   const bar = document.getElementById("timeline-bar");
   bar.innerHTML = "";
-  timelineSegments(timelineDay).forEach((seg) => {
+  const segments = timelineSegments(timelineDay);
+  if (fallback.enabled) {
+    fallbackGaps(segments).forEach(([from, to]) => renderFallbackSegment(bar, from, to));
+  }
+  document.getElementById("legend-fallback").hidden = !fallback.enabled;
+  segments.forEach((seg) => {
     const el = document.createElement("button");
     el.type = "button";
     el.className = `tl-seg mode-${modeKind(seg.winner.ems_mode)}`;
@@ -667,6 +702,7 @@ async function loadConfig() {
   document.getElementById("inverter-type").value = cfg.settings?.inverter_type || "sigenergy";
   renderEntityGrid();
   document.getElementById("battery-capacity").value = cfg.settings?.battery_capacity_kwh ?? "";
+  fillFallback(cfg.fallback);
   windows = cfg.windows || [];
   // A restore replaces every schedule, so whatever was open in the editor is gone.
   if (editing) {
@@ -694,11 +730,66 @@ async function onInverterTypeChange() {
   // place, keeping anything typed but not yet saved.
   collectEntities();
   renderEntityGrid();
+  renderFallbackFields();
   renderSchedules();
   if (editing) {
     const select = editing.node.querySelector(".w-ems-mode");
     fillModeOptions(select, select.value);
     updateModeVisibility(editing.node);
+  }
+}
+
+// ---------- fallback ----------
+
+// Fallback settings as last loaded from or saved to the server.
+let fallback = {};
+
+const FALLBACK_FIELDS = {
+  export_limit_kw: "fb-export",
+  import_limit_kw: "fb-import",
+  charge_power_kw: "fb-charge",
+  discharge_power_kw: "fb-discharge",
+  ems_power_limit_kw: "fb-ems-power",
+};
+
+// Shows only the fields this inverter type uses, and refills the mode list.
+function renderFallbackFields() {
+  const profile = currentProfile();
+  const select = document.getElementById("fb-ems-mode");
+  // Keep what's picked (even "don't manage"); the saved mode on first fill.
+  fillModeOptions(select, select.options.length ? select.value : fallback.ems_mode);
+  const shared = profile.power_control === "shared";
+  document.querySelectorAll("#fallback-card .fb-separate").forEach((el) => (el.hidden = shared));
+  document.querySelectorAll("#fallback-card .fb-shared").forEach((el) => (el.hidden = !shared));
+  document.querySelectorAll("#fallback-card .fb-import").forEach((el) => (el.hidden = !profile.has_import_limit));
+}
+
+function fillFallback(fb) {
+  fallback = fb || {};
+  document.getElementById("fb-enabled").checked = !!fallback.enabled;
+  document.getElementById("fb-ems-mode").innerHTML = "";
+  Object.entries(FALLBACK_FIELDS).forEach(([key, id]) => {
+    document.getElementById(id).value = fallback[key] ?? "";
+  });
+  renderFallbackFields();
+}
+
+async function saveFallback() {
+  const data = {
+    enabled: document.getElementById("fb-enabled").checked,
+    ems_mode: document.getElementById("fb-ems-mode").value || null,
+  };
+  Object.entries(FALLBACK_FIELDS).forEach(([key, id]) => {
+    const raw = document.getElementById(id).value;
+    data[key] = raw === "" ? null : Number(raw);
+  });
+  try {
+    fallback = await sendJSON("api/fallback", "POST", data);
+    flashSaved("fallback-save-msg");
+    renderTimeline();
+    refreshStatus();
+  } catch (e) {
+    flashMsg("fallback-save-msg", `Couldn't save: ${e.message}`, true);
   }
 }
 
@@ -785,8 +876,17 @@ async function refreshStatus() {
       pill.style.color = "var(--warn)";
     } else if (status.last_run) {
       const names = status.active_window_names || [];
-      pill.textContent = names.length ? names.join(", ") : "idle";
-      pill.style.color = names.length ? "var(--good)" : "var(--muted)";
+      if (names.length) {
+        pill.textContent = names.join(", ");
+        pill.style.color = "var(--good)";
+      } else if (status.fallback_active) {
+        const mode = fallback.ems_mode ? ` · ${modeLabel(fallback.ems_mode)}` : "";
+        pill.textContent = `Fallback active${mode}`;
+        pill.style.color = "var(--accent)";
+      } else {
+        pill.textContent = "idle";
+        pill.style.color = "var(--muted)";
+      }
     } else {
       pill.textContent = "waiting for first run";
     }
@@ -818,6 +918,7 @@ function initTabs() {
 
 document.getElementById("save-entities").addEventListener("click", saveEntities);
 document.getElementById("save-settings").addEventListener("click", saveSettings);
+document.getElementById("save-fallback").addEventListener("click", saveFallback);
 document.getElementById("pause-toggle").addEventListener("click", togglePaused);
 document.getElementById("download-backup").addEventListener("click", downloadBackup);
 document.getElementById("restore-backup").addEventListener("click", () => {

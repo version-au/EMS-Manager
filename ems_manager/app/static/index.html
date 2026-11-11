@@ -46,9 +46,27 @@
         <span class="save-msg" id="settings-save-msg"></span>
       </section>
 
+      <section class="card" id="fallback-card">
+        <h2>Fallback</h2>
+        <p class="hint">Applied whenever no schedule is active, so the inverter goes back to normal instead of staying in whatever mode the last schedule set. Re-applied every poll, like a schedule. Leave a field blank to leave that entity alone.</p>
+        <div class="grp fallback-grp">
+          <label class="row">Use fallback when no schedule is active
+            <span class="switch"><input type="checkbox" id="fb-enabled" /><span class="switch-track"></span></span>
+          </label>
+          <label class="row">EMS mode <select id="fb-ems-mode"></select></label>
+          <label class="row fb-separate">Charge power (kW) <input type="number" step="0.1" inputmode="decimal" id="fb-charge" /></label>
+          <label class="row fb-separate">Discharge power (kW) <input type="number" step="0.1" inputmode="decimal" id="fb-discharge" /></label>
+          <label class="row fb-shared">EMS power limit (kW) <input type="number" step="0.1" inputmode="decimal" id="fb-ems-power" /></label>
+          <label class="row fb-import">Import limit (kW) <input type="number" step="0.1" inputmode="decimal" id="fb-import" /></label>
+          <label class="row">Export limit (kW) <input type="number" step="0.1" inputmode="decimal" id="fb-export" /></label>
+        </div>
+        <button id="save-fallback">Save fallback</button>
+        <span class="save-msg" id="fallback-save-msg"></span>
+      </section>
+
       <section class="card" id="backup-card">
         <h2>Backup &amp; restore</h2>
-        <p class="hint">Download your entities, system settings and schedules as a JSON file, or restore them from one. Restoring replaces everything currently saved.</p>
+        <p class="hint">Download your entities, system settings, fallback and schedules as a JSON file, or restore them from one. Restoring replaces everything currently saved.</p>
         <button id="download-backup">Download backup</button>
         <button id="restore-backup">Restore from file…</button>
         <input type="file" id="restore-file" accept=".json,application/json" hidden />
@@ -93,6 +111,7 @@
             <span><i class="mode-dis"></i>Discharging</span>
             <span><i class="mode-none"></i>No mode set</span>
             <span><i class="mode-other overlap"></i>Overlapping</span>
+            <span id="legend-fallback" hidden><i class="mode-other tl-fallback"></i>Fallback</span>
           </div>
         </div>
 

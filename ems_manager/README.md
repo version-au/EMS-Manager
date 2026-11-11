@@ -127,10 +127,10 @@ all.
   are charging modes; Discharge battery / Export AC / Discharge PV / Sell
   power are discharging modes.
 
-The add-on does nothing outside schedule windows, so the inverter stays in
-whatever mode the last schedule set. To return to normal operation after
-a forced charge/discharge, add a schedule covering the rest of the day
-with a self-use mode (Maximum Self Consumption / Auto).
+Outside schedule windows the add-on applies the **Fallback** settings
+(Setup tab) if you've turned them on - see below. With the fallback off it
+does nothing, so the inverter stays in whatever mode the last schedule
+set.
 
 If you switch inverter type, schedules keep their old EMS mode, shown as
 "(not a … mode)" in the dropdown. It isn't applied (the Status tab shows
@@ -282,6 +282,27 @@ fixed at the source, and `storage.py` also auto-repairs any window still
 carrying that bad id (regenerating a proper one from its name) the next
 time the config loads - no manual fix needed if you hit this on an
 earlier version.
+
+## Added in v0.15.0: Fallback when no schedule is active
+
+The Setup tab has a new **Fallback** card. Turn on **Use fallback when no
+schedule is active** and pick an EMS mode (usually Maximum Self
+Consumption or Auto) plus any limits to restore:
+
+- **Sigenergy:** charge power, discharge power, import limit, export limit.
+- **GoodWe:** EMS power limit, export limit.
+
+Whenever no schedule is running, these are written to the inverter and
+re-applied every poll, just like a schedule - so the inverter returns to
+normal after a forced charge/discharge without needing a filler schedule
+for the rest of the day. Blank fields leave that entity alone. It only
+applies when *no* schedule is active; a running schedule that leaves a
+field blank doesn't pick up the fallback value. Pausing scheduling stops
+the fallback too. While it's applied, the status pill at the top shows
+**Fallback active** and its EMS mode. On the Schedules timeline, the gaps
+between schedules are filled with a faded **Fallback** block in its
+mode's colour (click it to jump to the Fallback card). It's included in
+backups (older backups restore it as off).
 
 ## Added in v0.14.0: Ramp export based on solar input
 

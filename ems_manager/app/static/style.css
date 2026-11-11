@@ -348,6 +348,14 @@ button#add-window {
   background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0 3px, transparent 3px 7px);
 }
 
+/* Fallback fills the gaps between schedules: same mode colour, faded and
+   outlined so it reads as "default" rather than a schedule. */
+.tl-fallback {
+  opacity: 0.45;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
 .timeline-marker {
   position: absolute;
   top: -4px;
@@ -698,6 +706,8 @@ button#add-window {
 
 /* Hidden by default; JS shows the relevant set once an EMS mode is picked.
    Comes after .row so it wins over its display:flex. */
+.fallback-grp { margin-bottom: 12px; }
+
 .mode-discharge-only,
 .mode-charge-only,
 .mode-other-only,

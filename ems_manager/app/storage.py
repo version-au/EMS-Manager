@@ -32,6 +32,17 @@ DEFAULT_CONFIG = {
         "battery_capacity_kwh": None,
     },
     "windows": [],
+    # Applied whenever no schedule is active (if enabled). Blank (None)
+    # values leave that entity alone.
+    "fallback": {
+        "enabled": False,
+        "ems_mode": None,
+        "export_limit_kw": None,
+        "import_limit_kw": None,
+        "charge_power_kw": None,
+        "discharge_power_kw": None,
+        "ems_power_limit_kw": None,
+    },
     # Pause button for all scheduling: while true the scheduler still tracks
     # which windows would be active but writes nothing to the inverter.
     "paused": False,
@@ -108,6 +119,8 @@ def load_config() -> dict:
                 data["entities"].setdefault(key, val)
             for key, val in DEFAULT_CONFIG["settings"].items():
                 data["settings"].setdefault(key, val)
+            for key, val in DEFAULT_CONFIG["fallback"].items():
+                data["fallback"].setdefault(key, val)
             needs_save = _repair_window_ids(data["windows"])
             needs_save = _migrate_export_limit_field(data["windows"]) or needs_save
             if needs_save:

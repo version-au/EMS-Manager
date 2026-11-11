@@ -148,6 +148,11 @@ class Scheduler:
                     await self._send_notification(w, status)
 
         if not active:
+            fallback = cfg.get("fallback") or {}
+            if fallback.get("enabled"):
+                status["fallback_active"] = True
+                status["actions"].append("No schedule active - applying fallback")
+                await self._write_values(entities, profile, self._fallback_values(fallback, profile), status)
             self._previously_active = active_ids
             storage.save_status(status)
             return
@@ -267,9 +272,34 @@ class Scheduler:
                     profile["charge_ramp_field"],
                 )
 
+        await self._write_values(entities, profile, merged, status)
+        storage.save_status(status)
+        self._previously_active = active_ids
+
+    @staticmethod
+    def _fallback_values(fallback: dict, profile: dict) -> dict:
+        """The fallback settings in the same shape as a merged schedule, so
+        they go through the same writes. On a shared-setpoint inverter
+        (GoodWe) the one EMS power limit value stands in for charge and
+        discharge power too, whichever direction the fallback mode runs."""
+        values = {
+            key: fallback.get(key)
+            for key in ("ems_mode", "export_limit_kw", "import_limit_kw", "charge_power_kw", "discharge_power_kw")
+        }
+        if profile["power_control"] == "shared":
+            power = fallback.get("ems_power_limit_kw")
+            values.update(ems_power_limit_kw=power, charge_power_kw=power, discharge_power_kw=power)
+        return {k: v for k, v in values.items() if v is not None}
+
+    async def _write_values(self, entities: dict, profile: dict, merged: dict, status: dict) -> None:
+        """Write the EMS mode and every power/limit value in merged to the
+        inverter's entities. Shared by schedules and the fallback."""
+        mode = merged.get("ems_mode")
+        charge_modes = set(profile["charge_modes"])
+        discharge_modes = set(profile["discharge_modes"])
         if mode and mode not in {value for value, _ in profile["modes"]}:
             status["errors"].append(
-                f"EMS mode {mode!r} isn't a {profile['label']} mode - not applied (edit the schedule)"
+                f"EMS mode {mode!r} isn't a {profile['label']} mode - not applied (edit the schedule or fallback)"
             )
             merged.pop("ems_mode")
         await self._apply_ems_mode(entities, merged, status)
@@ -323,9 +353,6 @@ class Scheduler:
             status,
             "export limit",
         )
-
-        storage.save_status(status)
-        self._previously_active = active_ids
 
     def _apply_discharge_ramp(
         self,

@@ -86,6 +86,17 @@ class SettingsPayload(BaseModel):
     battery_capacity_kwh: float | None = None
 
 
+class FallbackPayload(BaseModel):
+    """Applied while no schedule is active. None leaves that entity alone."""
+    enabled: bool = False
+    ems_mode: str | None = None
+    export_limit_kw: float | None = None
+    import_limit_kw: float | None = None
+    charge_power_kw: float | None = None
+    discharge_power_kw: float | None = None
+    ems_power_limit_kw: float | None = None
+
+
 class Window(BaseModel):
     id: str
     name: str
@@ -156,6 +167,15 @@ async def set_settings(payload: SettingsPayload):
     cfg["settings"] = payload.model_dump()
     storage.save_config(cfg)
     return cfg
+
+
+@app.post("/api/fallback")
+async def set_fallback(payload: FallbackPayload):
+    cfg = storage.load_config()
+    cfg["fallback"] = payload.model_dump()
+    storage.save_config(cfg)
+    log.info("Fallback %s", "enabled" if payload.enabled else "disabled")
+    return cfg["fallback"]
 
 
 @app.post("/api/windows")
@@ -235,7 +255,7 @@ async def set_paused(payload: PausedPayload):
 
 @app.get("/api/backup")
 async def get_backup():
-    """Everything the user configured (entities, settings, schedules) as a
+    """Everything the user configured (entities, settings, fallback, schedules) as a
     downloadable JSON file. Runtime status is left out - it's regenerated on
     the next poll anyway."""
     cfg = storage.load_config()
@@ -244,6 +264,7 @@ async def get_backup():
         "exported_at": datetime.now().isoformat(timespec="seconds"),
         "entities": cfg["entities"],
         "settings": cfg["settings"],
+        "fallback": cfg["fallback"],
         "windows": cfg["windows"],
     }
     filename = f"ems-manager-backup-{datetime.now():%Y-%m-%d}.json"
@@ -252,7 +273,7 @@ async def get_backup():
 
 @app.post("/api/restore")
 async def restore_backup(payload: dict):
-    """Replace entities, settings and schedules with the contents of a backup
+    """Replace entities, settings, fallback and schedules with the contents of a backup
     file. Also accepts a raw /data/config.json, since it has the same keys."""
     if not isinstance(payload.get("windows"), list) or not isinstance(payload.get("entities"), dict):
         raise HTTPException(status_code=400, detail="Not an EMS Manager backup file")
@@ -261,12 +282,15 @@ async def restore_backup(payload: dict):
     try:
         entities = EntitiesPayload(**payload["entities"])
         settings = SettingsPayload(**(payload.get("settings") or {}))
+        # Backups from before the fallback existed restore it as off.
+        fallback = FallbackPayload(**(payload.get("fallback") or {}))
         validated = [Window(**w) for w in windows]
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=f"Backup file is invalid: {exc}")
     cfg = storage.load_config()
     cfg["entities"] = entities.model_dump()
     cfg["settings"] = settings.model_dump()
+    cfg["fallback"] = fallback.model_dump()
     cfg["windows"] = [w.model_dump() for w in validated]
     storage.save_config(cfg)
     log.info("Restored config from backup (%d schedules)", len(validated))
