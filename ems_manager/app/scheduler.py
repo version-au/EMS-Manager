@@ -18,6 +18,9 @@ POWER_UNIT_SCALES = {"W": 1000.0, "kW": 1.0}
 # that's about to close doesn't produce a divide-by-near-zero power spike.
 MIN_RAMP_HOURS = 1 / 60
 
+# Published to Home Assistant every poll, for dashboards and automations.
+ACTIVE_SCHEDULE_SENSOR = "sensor.ems_manager_active_schedule"
+
 
 def _parse_hhmm(value: str) -> dtime:
     h, m = value.split(":")
@@ -94,9 +97,48 @@ class Scheduler:
             except Exception:
                 log.exception("Scheduler tick failed")
             try:
+                await self._publish_sensor()
+            except Exception:
+                log.exception("Publishing %s failed", ACTIVE_SCHEDULE_SENSOR)
+            try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self.poll_interval)
             except asyncio.TimeoutError:
                 pass
+
+    async def _publish_sensor(self) -> None:
+        """Mirror the last poll's status into ACTIVE_SCHEDULE_SENSOR: the
+        active schedule name(s), or Fallback / Paused / Idle. Posted every
+        poll - HA doesn't record a new history entry when nothing changed,
+        and re-posting brings the sensor back after an HA restart."""
+        cfg = storage.load_config()
+        status = cfg.get("status") or {}
+        if not status.get("last_run"):
+            return
+        profile = get_profile(cfg.get("settings", {}).get("inverter_type"))
+        names = status.get("active_window_names") or []
+        if status.get("paused"):
+            state = "Paused"
+        elif names:
+            state = ", ".join(names)[:255]
+        elif status.get("fallback_active"):
+            state = "Fallback"
+        else:
+            state = "Idle"
+        mode = status.get("ems_mode")
+        labels = dict(profile["modes"])
+        await self.ha.set_state(
+            ACTIVE_SCHEDULE_SENSOR,
+            state,
+            {
+                "friendly_name": "EMS Manager active schedule",
+                "icon": "mdi:calendar-clock",
+                "active_schedules": names,
+                "ems_mode": mode,
+                "ems_mode_label": labels.get(mode, mode) if mode else None,
+                "fallback_active": bool(status.get("fallback_active")),
+                "paused": bool(status.get("paused")),
+            },
+        )
 
     def _scale_for(self, state: Optional[dict]) -> Optional[float]:
         """kW -> entity-native multiplier for a power entity, from its
@@ -302,6 +344,9 @@ class Scheduler:
                 f"EMS mode {mode!r} isn't a {profile['label']} mode - not applied (edit the schedule or fallback)"
             )
             merged.pop("ems_mode")
+        # The mode being held right now (None if unmanaged), for the status
+        # and the active schedule sensor.
+        status["ems_mode"] = merged.get("ems_mode")
         await self._apply_ems_mode(entities, merged, status)
         if profile["power_control"] == "shared":
             # One power setpoint, meaning charge or discharge power depending

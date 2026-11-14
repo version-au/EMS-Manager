@@ -105,6 +105,20 @@ class HAClient:
             log.error("Failed to call %s.%s: %s", domain, service, exc)
             return False
 
+    async def set_state(self, entity_id: str, state: str, attributes: dict) -> bool:
+        """Create or update an entity's state directly (POST /api/states).
+        Such an entity has no unique ID and isn't kept across a Home
+        Assistant restart, so the caller re-posts it every poll."""
+        try:
+            resp = await self._client.post(
+                f"/states/{entity_id}", json={"state": state, "attributes": attributes}
+            )
+            resp.raise_for_status()
+            return True
+        except httpx.HTTPError as exc:
+            log.error("Failed to set state for %s: %s", entity_id, exc)
+            return False
+
     async def select_option(self, entity_id: str, option: str) -> bool:
         return await self.call_service(
             "select", "select_option", entity_id, {"option": option}

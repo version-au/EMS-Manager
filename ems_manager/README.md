@@ -283,6 +283,41 @@ carrying that bad id (regenerating a proper one from its name) the next
 time the config loads - no manual fix needed if you hit this on an
 earlier version.
 
+## Added in v0.16.0: Active schedule sensor
+
+Every poll the add-on publishes **`sensor.ems_manager_active_schedule`**
+to Home Assistant, so you can show it on a dashboard or use it in
+automations. Its state is:
+
+- the active schedule's name (several joined with ", " if they overlap),
+- `Fallback` while the fallback is applied,
+- `Paused` while scheduling is paused,
+- `Idle` otherwise.
+
+Attributes: `active_schedules` (list of names), `ems_mode` (raw value),
+`ems_mode_label` (readable name), `fallback_active` and `paused`.
+
+Add it to a dashboard with an Entity or Tile card, e.g.:
+
+```yaml
+type: tile
+entity: sensor.ems_manager_active_schedule
+```
+
+or show the mode too with a Markdown card:
+
+```yaml
+type: markdown
+content: >
+  **{{ states('sensor.ems_manager_active_schedule') }}**
+  ({{ state_attr('sensor.ems_manager_active_schedule', 'ems_mode_label') or 'no mode' }})
+```
+
+Because the add-on creates it through Home Assistant's API rather than an
+integration, it has no unique ID - you can't rename it or assign an area
+in the UI (HA says so on its settings page), and after a Home Assistant
+restart it's missing until the add-on's next poll.
+
 ## Added in v0.15.0: Fallback when no schedule is active
 
 The Setup tab has a new **Fallback** card. Turn on **Use fallback when no
